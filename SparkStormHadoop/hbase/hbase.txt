@@ -21,7 +21,7 @@ boolean advanceMemstore(WriteEntry e)：从头开始遍历writeQueue，移除所
 void waitForRead(WriteEntry e)：阻塞当前线程，直到memstoreRead等于当前WriteEntry的memstoreWrite，至此表明当前WriteEntry之前的所有更新事务都已经完成。
 
 see : http://www.cnblogs.com/panfeng412/p/mvcc-implementation-mechanism-in-hbase.html
-
+see :https://www.cnblogs.com/foxmailed/p/3897884.html
 3、Hbase中的metastore用来做什么的?
 
 Hbase的metastore是用来保存数据的，其中保存数据的方式有有三种第一种与第二种是本地储存，第三种是远程储存这一种企业用的比较多
