@@ -1,0 +1,51 @@
+ihbase性能解决方案：1、hbase怎么给web前台提供接口来访问?
+
+hbase有一个web的默认端口60010，是提供客户端用来访问hbase的
+
+2、hbase有没有并发问题?
+
+hbase实现了自己的MVVC。
+见org.apache.hadoop.hbase.regionserver.MultiVersionConsistencyControl，用于控制Memstore中读写的一致性，其中维护两个long型的变量：
+
+1）memstoreRead：用于记录当前全局可读的readPoint，同时为了每个客户端读请求能够记录自己发起请求时刻的readPoint，还有一个ThreadLocal的perThreadReadPoint变量，以及相关的set和get方法；
+
+2）memstoreWrite：用于记录当前全局最大的writePoint，根据它为下个事务生成新的writePoint。
+
+MultiVersionConsistencyControl中关键的实现方法如下：
+
+1）WriteEntry beginMemstoreInsert()：开始一个更新操作，将memstoreWrite加1，创建writeQueue并插入到writeQueue，并返回WriteEntry对象；
+
+2）void completeMemstoreInsert(WriteEntry e)：完成当前更新操作，将WriteEntry对象标记为可读，具体分两步：
+
+boolean advanceMemstore(WriteEntry e)：从头开始遍历writeQueue，移除所有已完成的WriteEntry对象，最后将memstoreRead更新为最新已完成的memstoreWrite；
+void waitForRead(WriteEntry e)：阻塞当前线程，直到memstoreRead等于当前WriteEntry的memstoreWrite，至此表明当前WriteEntry之前的所有更新事务都已经完成。
+
+see : http://www.cnblogs.com/panfeng412/p/mvcc-implementation-mechanism-in-hbase.html
+
+3、Hbase中的metastore用来做什么的?
+
+Hbase的metastore是用来保存数据的，其中保存数据的方式有有三种第一种与第二种是本地储存，第三种是远程储存这一种企业用的比较多
+
+4、HBase在进行模型设计时重点在什么地方?一张表中定义多少个Column Family最合适?为什么?
+
+具体看表的数据，一般来说划分标准是根据数据访问频度，如一张表里有些列访问相对频繁，而另一些列访问很少，这时可以把这张表划分成两个列族，分开存储，提高访问效率
+
+5、如何提高HBase客户端的读写性能?请举例说明。
+
+①开启bloomfilter过滤器，开启bloomfilter比没开启要快3、4倍
+
+②Hbase对于内存有特别的嗜好，在硬件允许的情况下配足够多的内存给它
+
+③通过修改hbase-env.sh中的
+
+export HBASE_HEAPSIZE=3000 #这里默认为1000m
+
+④增大RPC数量
+
+通过修改hbase-site.xml中的
+
+hbase.regionserver.handler.count属性，可以适当的放大。默认值为10有点小
+
+6、直接将时间戳作为行健，在写入单个region 时候会发生热点问题，为什么呢?
+
+HBase的rowkey在底层是HFile存储数据的，以键值对存放到SortedMap中。并且region中的rowkey是有序存储，若时间比较集中。就会存储到一个region中，这样一个region的数据变多，其它的region数据很好，加载数据就会很慢。直到region分裂可以解决。
