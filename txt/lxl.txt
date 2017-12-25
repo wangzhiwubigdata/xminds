@@ -1,0 +1,12 @@
+1.堆排序 
+2.懒加载单利模式
+3.volatile(可见性,重排序)
+4.hashmap多线程出现的问题(transfer方法)
+5.concurrenthashmap
+6.红黑树
+7.reentrantlock公平非公平
+8.设计一个观察者模式的注意事项
+9.dubbo路由 
+10.自己设计一个rpc注意事项 
+11.IOC AOP
+12....
