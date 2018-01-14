@@ -1,0 +1,24 @@
+http://blog.csdn.net/v_july_v/article/details/7624837
+http://mp.weixin.qq.com/s?__biz=MzA3MDg0MjgxNQ==&mid=2652390124&idx=1&sn=9eacc56ca2704c6fc4caefaa7b87ec8f&scene=0#rd
+https://www.jianshu.com/p/f86de852ee96
+函数间隔：超平面(w,b)关于训练集T的函数间隔为超平面(w,b)关于T中所有样本点(x,y)的函数间隔的最小值
+几何间隔：对分离超平面的法向量w加某些约束，如规范化|w|=1，使得间隔是确定的，这是函数间隔成为几何间隔
+核函数：http://www.cnblogs.com/jerrylead/archive/2011/03/18/1988406.html
+
+先求拉格朗日乘子向量 α
+然后计算权重向量w 和b
+解得超平面
+
+所有样本到分割面的最小值，求最大就是最优超平面
+目标函数
+w*,b*=argmax(min(wj*xi+bj)/||wj||)
+
+带约束的极值求解，使用拉格朗日乘子法
+
+求解分离超平面问题可以等价为求解相应的凸二次规划问题
+
+线性约束下的凸二次规划问题
+
+满足KKT条件，原问题是极小极大问题，可以转换成求对偶问题，求极大极小问题
+
+拉格朗日->转换成对偶形式->求乘子α->
