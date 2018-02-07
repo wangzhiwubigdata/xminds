@@ -1,0 +1,229 @@
+1 hive表关联查询，如何解决数据倾斜的问题?
+
+倾斜原因：
+
+map输出数据按key Hash的分配到reduce中，由于key分布不均匀、业务数据本身的特、建表时考虑不周、等原因造成的reduce 上的数据量差异过大。
+
+1)、key分布不均匀;
+
+2)、业务数据本身的特性;
+
+3)、建表时考虑不周;
+
+4)、某些SQL语句本身就有数据倾斜;
+
+如何避免：对于key为空产生的数据倾斜，可以对其赋予一个随机值。
+
+解决方案
+
+1>.参数调节：
+
+hive.map.aggr = true
+
+hive.groupby.skewindata=true
+
+有数据倾斜的时候进行负载均衡，当选项设定位true,生成的查询计划会有两个MR Job。第一个MR Job中，Map的输出结果集合会随机分布到Reduce中，每个Reduce做部分聚合操作，并输出结果，这样处理的结果是相同的Group By Key有可能被分发到不同的Reduce中，从而达到负载均衡的目的；第二个MR Job再根据预处理的数据结果按照Group By Key 分布到 Reduce 中（这个过程可以保证相同的 Group By Key 被分布到同一个Reduce中），最后完成最终的聚合操作。
+
+2>.SQL 语句调节：
+
+1)、选用join key分布最均匀的表作为驱动表。做好列裁剪和filter操作，以达到两表做join 的时候，数据量相对变小的效果。
+
+2)、大小表Join：
+
+使用map join让小的维度表（1000 条以下的记录条数）先进内存。在map端完成reduce.
+
+4)、大表Join大表：
+
+把空值的key变成一个字符串加上随机数，把倾斜的数据分到不同的reduce上，由于null 值关联不上，处理后并不影响最终结果。
+
+5)、count distinct大量相同特殊值:
+
+count distinct 时，将值为空的情况单独处理，如果是计算count distinct，可以不用处理，直接过滤，在最后结果中加1。如果还有其他计算，需要进行group by，可以先将值为空的记录单独处理，再和其他计算结果进行union。
+
+ 
+
+ 
+
+2. 请谈一下hive的特点是什么？hive和RDBMS有什么异同？
+ 
+
+hive是基于Hadoop的一个数据仓库工具，可以将结构化的数据文件映射为一张数据库表，并提供完整的sql查询功能，可以将sql语句转换为MapReduce任务进行运行。其优点是学习成本低，可以通过类SQL语句快速实现简单的MapReduce统计，不必开发专门的MapReduce应用，十分适合数据仓库的统计分析。
+
+ 
+
+ 
+
+3. 请把下一语句用hive方式实现？
+ 
+
+SELECT a.key,a.value 
+
+FROM a 
+
+WHERE a.key not in (SELECT b.key FROM b)
+
+答案：
+
+select a.key,a.value from a where a.key not exists (select b.key from b)
+
+4. Multi-group by 是hive的一个非常好的特性，请举例说明？
+ 
+
+from A
+
+insert overwrite table B
+
+ select A.a, count(distinct A.b) group by A.a
+
+insert overwrite table C
+
+  select A.c, count(distinct A.b) group by A.c
+
+
+5. 请说明hive中 Sort By，Order By，Cluster By，Distrbute By各代表什么意思。
+
+order by：会对输入做全局排序，因此只有一个reducer（多个reducer无法保证全局有序）。只有一个reducer，会导致当输入规模较大时，需要较长的计算时间。
+
+sort by：不是全局排序，其在数据进入reducer前完成排序。
+
+distribute by：按照指定的字段对数据进行划分输出到不同的reduce中。
+
+cluster by：除了具有 distribute by 的功能外还兼具 sort by 的功能。
+
+6.简要描述数据库中的 null，说出null在hive底层如何存储，并解释selecta.* from t1 a left outer join t2 b on a.id=b.id where b.id is null; 语句的含义
+
+null与任何值运算的结果都是null, 可以使用is null、is not null函数指定在其值为null情况下的取值。
+
+null在hive底层默认是用'\N'来存储的，可以通过alter table test SET SERDEPROPERTIES('serialization.null.format' = 'a');来修改。
+
+查询出t1表中与t2表中id相等的所有信息。
+
+7.写出hive中split、coalesce及collect_list函数的用法（可举例）。
+ 
+
+Split将字符串转化为数组。
+
+split('a,b,c,d' , ',') ==> ["a","b","c","d"]
+
+COALESCE(T v1, T v2, …) 返回参数中的第一个非空值；如果所有值都为 NULL，那么返回NULL。
+collect_list列出该字段所有的值，不去重  select collect_list(id) from table;
+
+8.写出将 text.txt 文件放入 hive 中 test 表‘2016-10-10’ 分区的语句，test 的分区字段是 l_date。
+ 
+LOAD DATA LOCAL INPATH '/your/path/test.txt' OVERWRITE INTO TABLE test PARTITION (l_date='2016-10-10')
+
+
+
+
+链接
+1.hive内联支持什么格式？
+1.1 原始数据类型
+整型
+TINYINT — 微整型，只占用1个字节，只能存储0-255的整数。
+SMALLINT– 小整型，占用2个字节，存储范围–32768 到 32767。
+INT– 整型，占用4个字节，存储范围-2147483648到2147483647。
+BIGINT– 长整型，占用8个字节，存储范围-2^63到2^63-1。
+布尔型
+BOOLEAN — TRUE/FALSE
+浮点型
+FLOAT– 单精度浮点数。
+DOUBLE– 双精度浮点数。
+字符串型
+STRING– 不设定长度。
+1.2 复合数据类型
+Structs：一组由任意数据类型组成的结构。比如，定义一个字段C的类型为STRUCT {a INT; b STRING}，则可以使用a和C.b来获取其中的元素值；
+Maps：和Java中的Map相同，即存储K-V对的；
+Arrays：数组；
+
+2.分号字符注意什么问题？（’\073’代替分号）
+https://www.bbsmax.com/A/MyJxAy7e5n/
+3.hive中empty是否为null?
+4.hive是否支持插入现有表或则分区中？
+5.hive是否支持INSERT INTO 表 values（）？
+
+HiveSql和普通sql的差别：
+1、Hive不支持等值连接 
+•SQL中对两表内联可以写成：
+•select * from dual a,dual b where a.key = b.key;
+•Hive中应为
+•select * from dual a join dual b on a.key = b.key; 
+而不是传统的格式：
+SELECT t1.a1 as c1, t2.b1 as c2FROM t1, t2
+WHERE t1.a2 = t2.b2
+
+2、分号字符
+•分号是SQL语句结束标记，在HiveQL中也是，但是在HiveQL中，对分号的识别没有那么智慧，例如：
+•select concat(key,concat(';',key)) from dual;
+•但HiveQL在解析语句时提示：
+        FAILED: Parse Error: line 0:-1 mismatched input '<EOF>' expecting ) in function specification
+•解决的办法是，使用分号的八进制的ASCII码进行转义，那么上述语句应写成：
+•select concat(key,concat('\073',key)) from dual;
+
+3、IS [NOT] NULL
+•SQL中null代表空值, 值得警惕的是, 在HiveQL中String类型的字段若是空(empty)字符串, 即长度为0, 那么对它进行IS NULL的判断结果是False.
+
+4、Hive不支持将数据插入现有的表或分区中，
+仅支持覆盖重写整个表，示例如下：
+INSERT OVERWRITE TABLE t1  
+SELECT * FROM t2;
+复制代码
+
+
+5、hive不支持INSERT INTO 表 Values（）, UPDATE, DELETE操作
+    这样的话，就不要很复杂的锁机制来读写数据。
+    INSERT INTO syntax is only available starting in version 0.8。INSERT INTO就是在表或分区中追加数据。
+
+6、hive支持嵌入mapreduce程序，来处理复杂的逻辑
+如：
+FROM (  
+MAP doctext USING 'python wc_mapper.py' AS (word, cnt)  
+FROM docs  
+CLUSTER BY word  
+) a  
+REDUCE word, cnt USING 'python wc_reduce.py';  
+复制代码
+
+
+--doctext: 是输入
+--word, cnt: 是map程序的输出
+
+--CLUSTER BY: 将wordhash后，又作为reduce程序的输入
+
+
+
+并且map程序、reduce程序可以单独使用，如：
+FROM (  
+FROM session_table  
+SELECT sessionid, tstamp, data  
+DISTRIBUTE BY sessionid SORT BY tstamp  
+) a  
+REDUCE sessionid, tstamp, data USING 'session_reducer.sh';  
+
+
+
+-DISTRIBUTE BY: 用于给reduce程序分配行数据
+
+7、hive支持将转换后的数据直接写入不同的表，还能写入分区、hdfs和本地目录
+这样能免除多次扫描输入表的开销。
+FROM t1  
+  
+INSERT OVERWRITE TABLE t2  
+SELECT t3.c2, count(1)  
+FROM t3  
+WHERE t3.c1 <= 20  
+GROUP BY t3.c2  
+  
+INSERT OVERWRITE DIRECTORY '/output_dir'  
+SELECT t3.c2, avg(t3.c1)  
+FROM t3  
+WHERE t3.c1 > 20 AND t3.c1 <= 30  
+GROUP BY t3.c2  
+  
+INSERT OVERWRITE LOCAL DIRECTORY '/home/dir'  
+SELECT t3.c2, sum(t3.c1)  
+FROM t3  
+WHERE t3.c1 > 30  
+GROUP BY t3.c2;  
+
+
+
