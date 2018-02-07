@@ -1,6 +1,0 @@
-http://www.analyticsvidhya.com/blog/2016/03/complete-guide-parameter-tuning-xgboost-with-codes-python/
-
-xgb比gbdt好的地方：
-二阶泰勒展开
-节点分数惩罚
-增益计算不同，gbdt是gini，xgb是优化推导公式
