@@ -84,11 +84,11 @@ https://www.cnblogs.com/fjwuyongzhi/archive/2012/01/14/2322611.html
 4.分布式事务如何解决？TCC？如果出现网络问题怎么办？
 https://www.cnblogs.com/taiyonghai/p/6094350.html
 一、结合MQ消息中间件实现的可靠消息最终一致性
-二、TCC补偿性事务解决方案
+二、TCC补偿性事务解决方案（二阶段提交，设置好回滚）
 三、最大努力通知型方案
 
 第一种方案：可靠消息最终一致性，需要业务系统结合MQ消息中间件实现，在实现过程中需要保证消息的成功发送及成功消费。即需要通过业务系统控制MQ的消息状态
-第二种方案：TCC补偿性，分为三个阶段TRYING-CONFIRMING-CANCELING。每个阶段做不同的处理。
+第二种方案：TCC补偿性，分为三个阶段TRYING-CONFIRMING-CANCELING。每个阶段做不同的处理。（2阶段提交，设置好回滚）
 TRYING阶段主要是对业务系统进行检测及资源预留
 CONFIRMING阶段是做业务提交，通过TRYING阶段执行成功后，再执行该阶段。默认如果TRYING阶段执行成功，CONFIRMING就一定能成功。
 CANCELING阶段是回对业务做回滚，在TRYING阶段中，如果存在分支事务TRYING失败，则需要调用CANCELING将已预留的资源进行释放。
@@ -285,10 +285,16 @@ http://blog.csdn.net/kaixuanfeng2012/article/details/72821874
 
 4.如何让你实现一个消息队列，如何进行架构设计？说一下思路
 mq 幂等 顺序 延迟 
+
+顺序性：保证生产者 - MQServer - 消费者是一对一对一的关系
 分布式搜索引擎
 1,es的工作过程是如何实现的？如何实现分布式的？
 https://www.cnblogs.com/tgzhu/p/6098339.html
 https://www.cnblogs.com/licongyu/p/5466992.html
+路由和分片
+分片
+文档在索引的时候，需要确定文档存放到哪个分片上去。（通过把 _id 作为 routing 来计算 shard）
+文档在检索的时候，需要确定文档处在具体哪个分片上。（通过把 _id 作为 routing 来计算 shard）
 2.es在数据量很大的情况下如何提高查询效率？（10亿)
 亿级规模的ES查询优化实战
 能用filter就不用query 
