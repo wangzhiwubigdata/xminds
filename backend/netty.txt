@@ -1,0 +1,269 @@
+，Netty简述
+Netty 是一个基于 JAVA NIO 类库的异步通信框架，用于创建异步非阻塞、基于事件驱动、高性能、高可靠性和高可定制性的网络客户端和服务器端
+RPC高性能分析，请参考文章“【总结】RPC性能之道 ”
+特点
+异步、非阻塞、基于事件驱动的NIO框架
+支持多种传输层通信协议，包括TCP、UDP等
+开发异步HTTP服务端和客户端应用程序
+提供对多种应用层协议的支持，包括TCP私有协议、HTTP协议、WebSocket协议、文件传输等
+默认提供多种编解码能力，包括Java序列化、Google的ProtoBuf、二进制编解码、Jboss marshalling、文本字符串、base64、简单XML等，这些编解码框架可以被用户直接使用
+提供形式多样的编解码基础类库，可以非常方便的实现私有协议栈编解码框架的二次定制和开发
+经典的ChannelFuture-listener机制，所有的异步IO操作都可以设置listener进行监听和获取操作结果
+基于ChannelPipeline-ChannelHandler的责任链模式，可以方便的自定义业务拦截器用于业务逻辑定制
+安全性：支持SSL、HTTPS
+可靠性：流量整形、读写超时控制机制、缓冲区最大容量限制、资源的优雅释放等
+简洁的API和启动辅助类，简化开发难度，减少代码量
+为什么不是传统的IO
+线程模型存在致命缺陷：一连接一线程的模型导致服务端无法承受大量客户端的并发连接
+性能差：频繁的线程上下文切换导致 CPU 利用效率不高
+可靠性差：由于所有的 IO 操作都是同步的，所以业务线程只要进行 IO 操作，也会存在被同步阻塞的风险，这会导致系统的可靠性差，依赖外部组件的处理能力和网络的情况
+使用NIO，同步阻塞 IO 的三个缺陷都将迎刃而解
+NIO 采用 Reactor 模式，一个 Reactor 线程聚合一个多路复用器 Selector，它可以同时注册、监听和轮询成百上千个 Channel，一个 IO 线程可以同时并发处理N个客户端连接，线程模型优化为1：N（N < 进程可用的最大句柄数）或者 M : N (M通常为 CPU 核数 + 1， N < 进程可用的最大句柄数)
+由于 IO 线程总数有限，不会存在频繁的 IO 线程之间上下文切换和竞争，CPU 利用率高
+所有的 IO 操作都是异步的，即使业务线程直接进行 IO 操作，也不会被同步阻塞，系统不再依赖外部的网络环境和外部应用程序的处理性能
+切换到 NIO 编程之后可以为系统带来巨大的可靠性、性能提升，所以，目前采用 NIO 进行通信已经逐渐成为主流
+为什么不直接使用JDK NIO类库
+NIO的类库和API繁杂，使用麻烦，你需要熟练掌握Selector、ServerSocketChannel、SocketChannel、ByteBuffer等
+需要具备其它的额外技能做铺垫，例如熟悉Java多线程编程，因为NIO编程涉及到Reactor模式，你必须对多线程和网路编程非常熟悉，才能编写出高质量的NIO程序
+可靠性能力补齐，工作量和难度都非常大。例如客户端面临断连重连、网络闪断、半包读写、失败缓存、网络拥塞和异常码流的处理等等，NIO编程的特点是功能开发相对容易，但是可靠性能力补齐工作量和难度都非常大
+JDK NIO的BUG，例如臭名昭著的epoll bug，它会导致Selector空轮询，最终导致CPU 100%。官方声称在JDK1.6版本的update18修复了该问题，但是直到JDK1.7版本该问题仍旧存在，只不过该bug发生概率降低了一些而已，它并没有被根本解决
+一个高性能、高可靠性的 NIO 服务端开发和维护成本都是非常高的，开发者需要具有丰富的 NIO 编程经验和网络维护经验，很多时候甚至需要通过抓包来定位问题
+开发出一套 NIO 程序需要 1 个月，但是它的稳定很可能需要 1 年甚至更长的时间
+Netty 的健壮性、功能、性能、可定制性和可扩展性在同类框架中都是首屈一指
+2，Netty原理
+Netty逻辑架构
+第一层
+Reactor 通信调度层，它由一系列辅助类组成，包括 Reactor 线程NioEventLoop 以及其父类、NioSocketChannel/NioServerSocketChannel 以及其父类、ByteBuffer 以及由其衍生出来的各种 Buffer、Unsafe 以及其衍生出的各种内部子类等
+第二层
+职责链 ChannelPipeLine，它负责调度事件在职责链中的传播，支持动态的编排职责链，职责链可以选择性的拦截自己关心的事件，对于其它IO操作和事件忽略，Handler同时支持inbound和outbound事件
+第三层
+业务逻辑编排层，业务逻辑编排层通常有两类：一类是纯粹的业务逻辑编排，还有一类是应用层协议插件，用于协议相关的编解码和链路管理，例如 CMPP 协议插件
+灵拷贝
+“零拷贝”是指计算机操作的过程中，CPU不需要为数据在内存之间的拷贝消耗资源。而它通常是指计算机在网络上发送文件时，不需要将文件内容拷贝到用户空间（User Space）而直接在内核空间（Kernel Space）中传输到网络的方式
+Netty的“零拷贝”主要体现在三个方面
+Netty的接收和发送ByteBuffer采用DIRECT BUFFERS，使用堆外直接内存进行Socket读写，不需要进行字节缓冲区的二次拷贝。如果使用传统的堆内存（HEAP BUFFERS）进行Socket读写，JVM会将堆内存Buffer拷贝一份到直接内存中，然后才写入Socket中。相比于堆外直接内存，消息在发送过程中多了一次缓冲区的内存拷贝
+读取直接从“堆外直接内存”，不像传统的堆内存和直接内存拷贝
+ByteBufAllocator 通过ioBuffer分配堆外内存
+Netty提供了组合Buffer对象，可以聚合多个ByteBuffer对象，用户可以像操作一个Buffer那样方便的对组合Buffer进行操作，避免了传统通过内存拷贝的方式将几个小Buffer合并成一个大的Buffer
+Netty允许我们将多段数据合并为一整段虚拟数据供用户使用，而过程中不需要对数据进行拷贝操作
+组合Buffer对象，避免了内存拷
+ChannelBuffer接口：Netty为需要传输的数据制定了统一的ChannelBuffer接口
+使用getByte(int index)方法来实现随机访问
+使用双指针的方式实现顺序访问
+Netty主要实现了HeapChannelBuffer，ByteBufferBackedChannelBuffer， 与Zero Copy直接相关的CompositeChannelBuffer类
+CompositeChannelBuffer类
+CompositeChannelBuffer类的作用是将多个ChannelBuffer组成一个虚拟的ChannelBuffer来进行操作
+为什么说是虚拟的呢，因为CompositeChannelBuffer并没有将多个ChannelBuffer真正的组合起来，而只是保存了他们的引用，这样就避免了数据的拷贝，实现了Zero Copy，内部实现
+其中readerIndex既读指针和writerIndex既写指针是从AbstractChannelBuffer继承而来的
+components是一个ChannelBuffer的数组，他保存了组成这个虚拟Buffer的所有子Buffer
+indices是一个int类型的数组，它保存的是各个Buffer的索引值
+lastAccessedComponentId是一个int值，它记录了最后一次访问时的子Buffer ID
+CompositeChannelBuffer实际上就是将一系列的Buffer通过数组保存起来，然后实现了ChannelBuffer 的接口，使得在上层看来，操作这些Buffer就像是操作一个单独的Buffer一样
+Netty的文件传输采用了transferTo方法，它可以直接将文件缓冲区的数据发送到目标Channel，避免了传统通过循环write方式导致的内存拷贝问题
+Linux中的sendfile()以及Java NIO中的FileChannel.transferTo()方法都实现了零拷贝的功能，而在Netty中也通过在FileRegion中包装了NIO的FileChannel.transferTo()方法实现了零拷贝
+内存池：
+堆外直接内存的分配和回收是一个非常耗时的操作
+通过内存池对缓存区的复用
+Netty提供了多种内存管理策略，通过在启动辅助类中配置相关参数，可以实现差异化的定制
+采用内存池的ByteBuf相比于朝生夕灭的ByteBuf，性能高23倍左右
+Netty提供四种ByteBuf
+基于内存池可重复利用的非堆内存：PooledDirectByteBuf
+基于内存池可重复利用的堆内存：PooledHeapByteBuf
+朝生夕灭的非堆内存：UnpooledDirectByteBuf
+朝生夕灭的堆内存：UnpooledHeapByteBuf
+为了更高效的管理内存，做到自动/及时的释放不再引用的对象，Netty内置的资源对象实现ReferenceCounted接口，对内存的申请和释放做统一管理
+Reactor线程模型
+Reactor单线程模型
+一个线程中，Acceptor进行请求派发，处理连接请求，验证， 通过Dispatch将对应的ByteBuffer派发到指定的Handler上进行消息解码，进行业务逻辑Handler工作
+小容量应用场景，可以使用单线程模型，对于高负载、大并发的应用却不合适
+一个NIO线程同时处理成百上千的链路，性能上无法支撑，即便NIO线程的CPU负荷达到100%，也无法满足海量消息的编码、解码、读取和发送
+当NIO线程负载过重之后，处理速度将变慢，这会导致大量客户端连接超时，超时之后往往会进行重发，这更加重了NIO线程的负载，最终会导致大量消息积压和处理超时，NIO线程会成为系统的性能瓶颈
+可靠性问题：一旦NIO线程意外跑飞，或者进入死循环，会导致整个系统通信模块不可用，不能接收和处理外部消息，造成节点故障
+Reactor多线程模型
+一个专门NIO Acceptor线程监听服务端，接受客户端TCP连接请求
+由一个NIO线程池（ 可以采用标准的JDK线程池实现，它包含一个任务队列和N个可用的线程）进行IO操作，读写，编码，消息发送接受
+1个NIO线程可以同时处理N条链路，但是1个链路只对应1个NIO线程，防止发生并发操作问题
+绝大多数场景下，Reactor多线程模型都可以满足性能需求， 在极特殊应用场景中，一个NIO线程负责监听和处理所有的客户端连接可能会存在性能问题
+例如百万客户端并发连接，或者服务端需要对客户端的握手消息进行安全认证，认证本身非常损耗性能
+主从Reactor多线程模型
+服务端用于接收客户端连接的不再是个1个单独的NIO线程，而是一个独立的NIO线程池
+Acceptor接收到客户端TCP连接请求处理完成后（可能包含接入认证等），将新创建的SocketChannel注册到IO线程池（sub reactor线程池）的某个IO线程上，由它负责SocketChannel的读写和编解码工作
+Acceptor线程池仅仅只用于客户端的登陆、握手和安全认证，一旦链路建立成功，就将链路注册到后端subReactor线程池的IO线程上，由IO线程负责后续的IO操作
+子线程池进行消息接受，发送，编码等业务处理
+Netty的线程模型可以通过创建不同的EventLoopGroup实例并通过适当的参数配置，就可以支持上述三种Reactor线程模型
+Netty 对Reactor线程模型的支持提供了灵活的定制能力，可以满足不同业务场景的性能诉求
+无锁化的串行设计
+大多数场景下，并行多线程处理可以提升系统的并发性能。但是，如果对于共享资源的并发访问处理不当，会带来严重的锁竞争，这最终会导致性能的下降
+为了尽可能避免锁竞争来的性能损耗，尽量让消息处理放在同一个线程内完成，避免频繁线程切换，避免多线程竞争和锁
+Netty采用了串行无锁化设计，在IO线程内部进行串行操作，避免多线程竞争导致的性能下降。表面上看，串行化设计似乎CPU利用率不高，并发程度不够。但是，通过调整NIO线程池的线程参数，可以同时启动多个串行化的线程并行运行，这种局部无锁化的串行线程设计相比一个队列-多个工作线程模型性能更优
+Netty的NioEventLoop读取到消息之后，直接调用ChannelPipeline的fireChannelRead(Object msg)，只要用户不主动切换线程，一直会由NioEventLoop调用到用户的Handler，期间不进行线程切换，这种串行化处理方式避免了多线程操作导致的锁的竞争，从性能角度看是最优的
+高效的并发编程
+对共享的可变数据进行正确的同步
+ServerBootstrap的ServerSocketChannel的Socket属性是非线程安全的LinkedHashMap所以如果多线程创建、访问和修改LinkedHashMap 时，必须在外部进行必要的同步
+考虑到锁的范围需要尽可能的小，我们对传参的option 和value 的合法性判断不需要加锁。因此，代码才对两个判断分支独立加锁，保证锁的范围尽可能的细粒度
+正确的使用锁
+wait 方法别用来使线程等待某个条件，它必须在同步块内部被调用，这个同步块通常会锁定当前对象实例
+始终使用wait 循环来调用wait 方法，永远不要在循环之外调用wait 方法。原因是尽管条件并不满足被唤醒条件， 但是由于其它线程意外调用notifyAll()方法会导致被阻塞线程意外唤醒，此时执行条件并不满足，它将破坏被锁保护的约定关系，导致约束失效，引起意想不到的结果
+唤醒线程，应该使用notify 还是notifyAll，当你不知道究竟该调用哪个方法时，保守的做法是调用notifyAll 唤醒所有等待的线程。从优化的角度看，如果处于等待的所有线程都在等待同一个条件，而每次只有一个线程可以从这个条件中被唤醒，那么就应该选择调用notify
+Volatile大量正确使用
+线程可见性：当一个线程修改了被volatile 修饰的变量后，无论是否加锁，其它线程都可以立即看到最新的修改，而普通变量却做不到这点
+禁止指令重排序优化，普通的变量仅仅保证在该方法的执行过程中所有依赖赋值结果的地方都能获取正确的结果，而不能保证变量赋值操作的顺序与程序代码的执行顺序一致
+volatile 仅仅解决了可见性的问题，但是它并不能保证互斥性，也就是说多个线程并发修改某个变量时，依旧会产生多线程问题。因此，不能靠volatile 来完全替代传的锁
+CAS和原子类广泛使用
+互斥同步最主要的问题就是进行线程阻塞和唤醒所带来的性能问题，因此这种同步被称为阻塞同步，它属于一种悲观的并发策略，我们称之为悲观锁
+随着硬件和操作系统指令集的发展和优化，产生了非阻塞同步，被称为乐观锁。简单的说就是先进行操作，操作完成之后再判断下看看操作是否成功，是否有并发问题，如果有进行失败补偿，如果没有就算操作成功，这样就从根本上避免了同步锁的弊端
+JAVA 自带的Atomic 原子类，可以避免同步锁带来的并发访问性能降低的问题
+Netty 中对于int、long、boolean 等大量使用其原子类，减少了锁的应用，降低了频繁使用同步锁带来的性能下降
+线程安全类的应用
+java.util.concurrent包中提供了一系列的线程安全集合、容器和线程池，利用这些新的线程安全类可以极大的降低Java 多线程编程的难度，提升开发效率
+线程池Executor Framework以及定时任务相关的类库，包括Timer等
+并发集合，包括List、Queue、Map和Set等
+新的同步器，例如读写锁ReadWriteLock等
+新的原子包装类，例如AtomicInteger
+在实际编码过程中，我们建议通过使用线程池、Task（Runnable/Callable）、原子类和线程安全容器来代替传统的同步锁、wait 和notify，提升并发访问的性能、降低多线程编程的难度
+JDK 的线程安全容器底层采用了CAS、volatile 和ReadWriteLock 实现，相比于传统重量级的同步锁，采用了更轻量、细粒度的锁，因此，性能会更高。采用这些线程安全容器，不仅仅能提升多线程并发访问的性能，还能降低开发难度
+通过读写锁提升并发性能
+JDK1.5 新的并发编程工具包中新增了读写锁，它是个轻量级、细粒度的锁，合理的使用读写锁，相比于传统的同步锁，可以提升并发访问的性能和吞吐量，在读多写少的场景下，使用同步锁比同步块性能高一大截
+读写锁的使用总结
+主要用于读多写少的场景，用来替代传统的同步锁，以提升并发访问性能
+读写锁是可重入、可降级的，一个线程获取读写锁后，可以继续递归获取；从写锁可以降级为读锁，以便快速释放锁资源
+ReentrantReadWriteLock 支持获取锁的公平策略，在某些特殊的应用场景下，可以提升并发访问的性能，同时兼顾线程等待公平性
+读写锁支持非阻塞的尝试获取锁，如果获取失败，直接返回false,而不是同步阻塞，这个功能在一些场景下非常有用。例如多个线程同步读写某个资源，当发生异常或者需要释放资源的时候，由哪个线程释放是个挑战，因为某些资源不能重复释放或者重复执行，这样，可以通过tryLock 方法尝试获取锁，如果拿不到，说明已经被其它线程占用，直接退出即可
+获取锁之后一定要释放锁，否则会发生锁溢出异常。通常的做法是通过finally 块释放锁。如果是tryLock，获取锁成功才需要释放锁
+不要使用线程优先级
+当有多个线程同时运行的时候，由线程调度器来决定哪些线程运行、哪些等待以及线程切换的时间点，由于各个操作系统的线程调度器实现大相径庭，因此，依赖JDK 自带的线程优先级来设置线程优先级策略的方法是错误和非平台可移植的
+所以，在任何情况下，你的程序都不能依赖JDK 自带的线程优先级来保证执行顺序、比例和策略
+高性能的系列化框架
+高性能框架的特点
+系列化后码流的大小-宽带的占用
+系列化和反系列化的性能-CPU资源占用
+是否支持跨语言
+JDK自身系列化性能太差
+性能较高的系列化框架
+Google Protobuf
+Thrift
+Hessian
+灵活的TCP参数配置能力
+SO_RCVBUF和SO_SENDBUF设置发送接受缓存大小
+软中断等
+Netty API
+bootstrap
+Bootstrap：ChannelFactory，ChannelPipeline，ChinnelPipelineFactory
+初始化channel辅助类
+为具体的子类提供公共数据结构
+ServerBootstrap：bind()
+创建服务器端channel辅助类
+接受connection请求
+ClientBootstrap：connect()
+创建客户端channel辅助类
+发起connection请求
+ConnectionlessBootstrap：connect()，bind()
+创建无连接传输channel辅助类（UDP）
+包括Client和Server
+buffer
+取代JDK NIO的java.nio.ByteBuffer，相比ByteBuffer
+可以根据需要自定义buffer type
+内置混合的buffer type，实现zero-copy
+提供类似StringBuffer的动态dynamic buffer
+不需要调用flip方法
+更快的性能
+推荐使用ChannelBuffers静态工厂创建ChannelBuffer
+Channel
+channel
+channel核心API，包括异步和事件驱动等各种传送接口
+group
+channel group，帮助用户维护channel列表
+local
+一种虚拟传输方式，允许一个虚拟机上的两个部分可以相互通信
+socket
+TCP，UDP接口，集成了核心的channel API
+socket oio
+基于老io的socket channel实现
+socket HTTP
+基于http客户端和相应的server端实现，工作在有防火墙的情况下
+handler
+handler
+处理器
+codec
+编码解码器
+base64
+Base64编码
+compression
+压缩格式
+embedder
+嵌入式下编码和解码
+frame
+评估流的数据的排列和内容
+http.websocket
+websocket编码解码
+http
+http的编码解码以及类型信息
+oneone
+对象到对象编码解码
+protobuf
+Protocol Buffers的编码解码
+replay
+在阻塞IO中实现非阻塞解码
+rtsp
+RTSP的编码解码
+serialization
+系列化对象到bytebuffer的实现
+string
+字符串编码解码，继承oneone
+execution
+基于Executor的实现
+queue
+将event存入内部队列的处理
+ssl
+基于SSLEngine的SSL以及TLS实现
+stream
+异步写入大数据，不会产生outOfMemory也不会花费很多内存
+timeout
+通过Timer来对读写超时或者闲置链接进行通知
+Netty线程问题案例
+Netty 3版本升级遭遇内存泄漏案例
+业务代码升级Netty 3到Netty4之后，运行一段时间，Java进程就会宕机，查看系统运行日志发现系统发生了内存泄露
+从业务的使用方式入手分析
+内存的分配是在业务代码中进行，由于使用到了业务线程池做I/O操作和业务操作的隔离，实际上内存是在业务线程中分配的
+内存的释放操作是在outbound中进行，按照Netty 3的线程模型，downstream（对应Netty 4的outbound，Netty 4取消了upstream和downstream）的handler也是由业务调用者线程执行的，也就是说申请和释放在同一个业务线程中进行。初次排查并没有发现导致内存泄露的根因，继续分析Netty内存池的实现原理
+Netty 内存池实现原理分析：查看Netty的内存池分配器PooledByteBufAllocator的源码实现，发现内存池实际是基于线程上下文实现的
+问题根因
+Netty 4修改了Netty 3的线程模型：在Netty 3的时候，upstream是在I/O线程里执行的，而downstream是在业务线程里执行。当Netty从网络读取一个数据报投递给业务handler的时候，handler是在I/O线程里执行；而当我们在业务线程中调用write和writeAndFlush向网络发送消息的时候,handler是在业务线程里执行，直到最后一个Header handler将消息写入到发送队列中，业务线程才返回
+Netty 4修改了这一模型，在Netty 4里inbound(对应Netty 3的upstream)和outbound(对应Netty 3的downstream)都是在NioEventLoop(I/O线程)中执行。当我们在业务线程里通过ChannelHandlerContext.write发送消息的时候，Netty 4在将消息发送事件调度到ChannelPipeline的时候，首先将待发送的消息封装成一个Task，然后放到NioEventLoop的任务队列中，由NioEventLoop线程异步执行。后续所有handler的调度和执行，包括消息的发送、I/O事件的通知，都由NioEventLoop线程负责处理
+在本案例中，ByteBuf在业务线程中申请，在后续的ChannelHandler中释放，ChannelHandler是由Netty的I/O线程(EventLoop)执行的，因此内存的申请和释放不在同一个线程中，导致内存泄漏
+Netty 3版本升级性能下降案例
+业务代码升级Netty 3到Netty4之后，并没有给产品带来预期的性能提升，有些甚至还发生了非常严重的性能下降，这与Netty 官方给出的数据并不一致
+在Netty 3中，上述两个热点方法都是由业务线程负责执行；而在Netty 4中，则是由NioEventLoop(I/O)线程执行。对于某个链路，业务是拥有多个线程的线程池，而NioEventLoop只有一个，所以执行效率更低，返回给客户端的应答时延就大。时延增大之后，自然导致系统并发量降低，性能下降
+找出问题根因之后，针对Netty 4的线程模型对业务进行专项优化，将耗时的编码等操作迁移到业务线程中执行，为I/O线程减负，性能达到预期，远超过了Netty 3老版本的性能
+该问题的根因还是由于Netty 4的线程模型变更引起，线程模型变更之后，不仅影响业务的功能，甚至对性能也会造成很大的影响
+对Netty的升级需要从功能、兼容性和性能等多个角度进行综合考虑，切不可只盯着API变更这个芝麻，而丢掉了性能这个西瓜。API的变更会导致编译错误，但是性能下降却隐藏于无形之中，稍不留意就会中招
+Netty业务Handler接收不到消息案例
+碰到一个问题，经常有请求上来到MessageDecoder就结束了，没有继续往LogicServerHandler里面送，觉得很奇怪，是不是线程池满了
+Netty EventExecutor的典型实现有两个：DefaultEventExecutor和SingleThreadEventLoop，在本案例中，因为使用的是DefaultEventExecutorGroup，所以实际执行业务Handler的线程池就是DefaultEventExecutor，它继承自SingleThreadEventExecutor，从名称就可以看出它是个单线程的线程池。它的工作原理如下
+DefaultEventExecutor聚合JDK的Executor和Thread, 首次执行Task的时候启动线程，将线程池状态修改为运行态
+Thread run方法循环从队列中获取Task执行，如果队列为空，则同步阻塞，线程无限循环执行，直到接收到退出信号
+事实上，Netty为了防止多线程执行某个Handler（Channel）引起线程安全问题，实际只有一个线程会执行某个Handler
+实际就像JDK的线程池，不同的业务场景、硬件环境和性能标就会有不同的配置，无法给出标准的答案。需要进行实际测试、评估和调优来灵活调整
+Netty 4 ChannelHandler线程安全疑问
+Netty 4优化了Netty 3的线程模型，其中一个非常大的优化就是用户不需要再担心ChannelHandler会被并发调用，总结如下
+ChannelHandler's的方法不会被Netty并发调用
+用户不再需要对ChannelHandler的各个方法做同步保护
+ChannelHandler实例不允许被多次添加到ChannelPiple中，否则线程安全将得不到保证
+ChannelHandler的线程安全存在几个特例，总结如下
+如果ChannelHandler被注解为 @Sharable，全局只有一个handler实例，它会被多个Channel的Pipeline共享，会被多线程并发调用，因此它不是线程安全的
+如果存在跨ChannelHandler的实例级变量共享，需要特别注意，它可能不是线程安全的
+3，Netty应用场景
+弹性伸缩的分布式服务架构
+阿里巴巴Dubbo内部私有通信协议-dubbo协议默认使用Netty作为高性能异步通信框架，为分布式服务节点之间提供高性能的NIO客户端和服务端通信
+大众点评服务框架Pigeon和消息中间件Swallow
+大数据领域
+Hadoop的子系统Apache Avro
+丰富的数据结构
+压缩、高效、二进制的序列化框
+远程服务调用（RPC）
+多语言、灵活的集成能力
+游戏行业
+高并发：由于采用异步非阻塞模式，一个Netty游戏服务端可以同时处理成千上万的游戏玩家登陆和在线
+高性能：Netty的性能在各个NIO框架中最高，它的单节点吞吐量非常大，适合海量玩家同时在线游戏
+安全性：支持HTTPS、SSL等，可以在传输层进行安全控制
+定制性：可以方便的实现业务逻辑的定制、游戏编解码的定制，可以方便的与第三方进行集成，例如amf3等
