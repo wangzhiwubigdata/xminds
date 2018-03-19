@@ -1,0 +1,18 @@
+1.kafka为什么要在topic里加入分区的概念？
+topic是逻辑的概念，partition是物理的概念，对用户来说是透明的。producer只需要关心消息发往哪个topic，而consumer只关心自己订阅哪个topic，并不关心每条消息存于整个集群的哪个broker。
+
+为了性能考虑，如果topic内的消息只存于一个broker，那这个broker会成为瓶颈，无法做到水平扩展。所以把topic内的数据分布到整个集群就是一个自然而然的设计方式。Partition的引入就是解决水平扩展问题的一个方案。
+
+如同我在Kafka设计解析（一）里所讲，每个partition可以被认为是一个无限长度的数组，新数据顺序追加进这个数组。物理上，每个partition对应于一个文件夹。一个broker上可以存放多个partition。这样，producer可以将数据发送给多个broker上的多个partition，consumer也可以并行从多个broker上的不同paritition上读数据，实现了水平扩展
+
+
+2.kafka数据同步方式
+Kafka动态维护了一个同步状态的副本的集合（a set of in-sync replicas），简称ISR，在这个集合中的节点都是和leader保持高度一致的，任何一条消息必须被这个集合中的每个节点读取并追加到日志中了，才回通知外部这个消息已经被提交了。因此这个集合中的任何一个节点随时都可以被选为leader.ISR在ZooKeeper中维护。ISR中有f+1个节点，就可以允许在f个节点down掉的情况下不会丢失消息并正常提供服。ISR的成员是动态的，如果一个节点被淘汰了，当它重新达到“同步中”的状态时，他可以重新加入ISR.这种leader的选择方式是非常快速的，适合kafka的应用场景
+
+1. producer 先从 zookeeper 的 "/brokers/.../state" 节点找到该 partition 的 leader
+2. producer 将消息发送给该 leader
+3. leader 将消息写入本地 log
+4. followers 从 leader pull 消息，写入本地 log 后 leader 发送 ACK
+5. leader 收到所有 ISR 中的 replica 的 ACK 后，增加 HW（high watermark，最后 commit 的 offset） 并向 producer 发送 ACK
+
+
