@@ -1,4 +1,4 @@
-iJava基础
+Java基础
 1、List 和 Set 的区别
   List：1.可以允许重复的对象。
 　　    2.可以插入多个null元素。
