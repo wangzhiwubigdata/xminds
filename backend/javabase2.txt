@@ -497,8 +497,19 @@ Spring 事务实现方式
 （2.3）基于注解的方式，配置简单，需要在业务层类中添加注解
 
 Spring 事务底层原理
-
+工作原理及实现
+a、划分处理单元——IOC
+由于spring解决的问题是对单个数据库进行局部事务处理的，具体的实现首相用spring中的IOC划分了事务处理单元。并且将对事务的各种配置放到了ioc容器中（设置事务管理器，设置事务的传播特性及隔离机制）。
+b、AOP拦截需要进行事务处理的类
+Spring事务处理模块是通过AOP功能来实现声明式事务处理的，具体操作（比如事务实行的配置和读取，事务对象的抽象），用TransactionProxyFactoryBean接口来使用AOP功能，生成proxy代理对象，通过TransactionInterceptor完成对代理方法的拦截，将事务处理的功能编织到拦截的方法中。
+读取ioc容器事务配置属性，转化为spring事务处理需要的内部数据结构（TransactionAttributeSourceAdvisor），转化为TransactionAttribute表示的数据对象。
+c、对事物处理实现（事务的生成、提交、回滚、挂起）
+spring委托给具体的事务处理器实现。实现了一个抽象和适配。适配的具体事务处理器：DataSource数据源支持、hibernate数据源事务处理支持、JDO数据源事务处理支持，JPA、JTA数据源事务处理支持。这些支持都是通过设计PlatformTransactionManager、AbstractPlatforTransaction一系列事务处理的支持。
+为常用数据源支持提供了一系列的TransactionManager。
+d、结合
+PlatformTransactionManager实现了TransactionInterception接口，让其与TransactionProxyFactoryBean结合起来，形成一个Spring声明式事务处理的设计体系。
 如何自定义注解实现功能
+
 
 Spring MVC 运行流程
 
