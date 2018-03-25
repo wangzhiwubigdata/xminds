@@ -3,47 +3,166 @@
 面向对象的特征
 
 1.final, finally, finalize 的区别
+final—修饰符（关键字）如果一个类被声明为final，意味着它不能再派生出新的子类，不能作为父类被继承。因此一个类不能既被声明为 abstract的，又被声明为final的。将变量或方法声明为final，可以保证它们在使用中不被改变。被声明为final的变量必须在声明时给定初值，而在以后的引用中只能读取，不可修改。被声明为final的方法也同样只能使用，不能重载。 
+finally—再异常处理时提供 finally 块来执行任何清除操作。如果抛出一个异常，那么相匹配的 catch 子句就会执行，然后控制就会进入 finally 块（如果有的话）。 
+finalize—方法名。Java 技术允许使用 finalize() 方法在垃圾收集器将对象从内存中清除出去之前做必要的清理工作。这个方法是由垃圾收集器在确定这个对象没有被引用时对这个对象调用的。它是在 Object 类中定义的，因此所有的类都继承了它。子类覆盖 finalize() 方法以整理系统资源或者执行其他清理工作。finalize() 方法是在垃圾收集器删除对象之前对这个对象调用的。
 
 2.int 和 Integer 有什么区别
 
-3.重载和重写的区别
+1，无论如何，Integer与new Integer不会相等。不会经历拆箱过程，new出来的对象存放在堆，而非new的Integer常量则在常量池（在方法区），他们的内存地址不一样，所以为false。
+2，两个都是非new出来的Integer，如果数在-128到127之间，则是true,否则为false。因为java在编译Integer i2 = 128的时候,被翻译成：Integer i2 = Integer.valueOf(128);而valueOf()函数会对-128到127之间的数进行缓存。
+3，两个都是new出来的,都为false。还是内存地址不一样。
+4，int和Integer(无论new否)比，都为true，因为会把Integer自动拆箱为int再去比c class TestInteger {  
+    public static void main(String[] args) {  
+        int i = 128;  
+        Integer i2 = 128;  
+        Integer i3 = new Integer(128);  
+        System.out.println(i == i2); //Integer会自动拆箱为int，所以为true  
+        System.out.println(i == i3); //true，理由同上  
+        Integer i4 = 127;//编译时被翻译成：Integer i4 = Integer.valueOf(127);  
+        Integer i5 = 127;  
+        System.out.println(i4 == i5);//true  
+        Integer i6 = 128;  
+        Integer i7 = 128;  
+        System.out.println(i6 == i7);//false  
+        Integer i8 = new Integer(127);  
+        System.out.println(i5 == i8); //false  
+        Integer i9 = new Integer(128);  
+        Integer i10 = new Integer(123);  
+        System.out.println(i9 == i10);  //false  
+    }  
+}  。
 
+
+3.重载和重写的区别
+1. Override 特点
+
+　　1、覆盖的方法的标志必须要和被覆盖的方法的标志完全匹配，才能达到覆盖的效果；
+
+　　2、覆盖的方法的返回值必须和被覆盖的方法的返回一致；
+
+　　3、覆盖的方法所抛出的异常必须和被覆盖方法的所抛出的异常一致，或者是其子类；
+
+　　4、被覆盖的方法不能为private，否则在其子类中只是新定义了一个方法，并没有对其进行覆盖。
+
+2.Overload 特点
+
+　　1、在使用重载时只能通过不同的参数样式。例如，不同的参数类型，不同的参数个数，不同的参数顺序（当然，同一方法内的几个参数类型必须不一样，例如可以是fun(int, float)， 但是不能为fun(int, int)）；
+
+　　2、不能通过访问权限、返回类型、抛出的异常进行重载；
+
+　　3、方法的异常类型和数目不会对重载造成影响；
+
+　　4、对于继承来说，如果某一方法在父类中是访问权限是priavte，那么就不能在子类对其进行重载，如果定义的话，也只是定义了一个新方法，而不会达到重载的效果。
 4.抽象类和接口有什么区别
+第一点． 接口是抽象类的变体，接口中所有的方法都是抽象的。而抽象类是声明方法的存在而不去实现它的类。
+第二点． 接口可以多继承，抽象类不行
+第三点． 接口定义方法，不能实现，而抽象类可以实现部分方法。
+第四点． 接口中基本数据类型为static 而抽类象不是的。
+当你关注一个事物的本质的时候，用抽象类；当你关注一个操作的时候，用接口。
+抽象类的功能要远超过接口，但是，定义抽象类的代价高。因为高级语言来说（从实际设计上来说也是）每个类只能继承一个类。在这个类中，你必须继承或编写出其所有子类的
 
 说说反射的用途及实现
+Java反射机制主要用于实现以下功能。
+（1）在运行时判断任意一个对象所属的类型。
+（2）在运行时构造任意一个类的对象。
+（3）在运行时判断任意一个类所具有的成员变量和方法。
+（4）在运行时调用任意一个对象的方法，甚至可以调用private方法。
+注意：上述功能都是在运行时环境中，而不是在编译时环境中。
 
 说说自定义注解的场景及实现
+restful下方法上定义@LoggedIn判断是否需要登录
+
 
 HTTP 请求的 GET 与 POST 方式的区别
+1. GET和POST与数据如何传递没有关系
+
+GET和POST是由HTTP协议定义的。在HTTP协议中，Method和Data（URL， Body， Header）是正交的两个概念，也就是说，使用哪个Method与应用层的数据如何传输是没有相互关系的。
+
+HTTP没有要求，如果Method是POST数据就要放在BODY中。也没有要求，如果Method是GET，数据（参数）就一定要放在URL中而不能放在BODY中。
+
+那么，网上流传甚广的这个说法是从何而来的呢？我在HTML标准中，找到了相似的描述。这和网上流传的说法一致。但是这只是HTML标准对HTTP协议的用法的约定。怎么能当成GET和POST的区别呢？
+
+而且，现代的Web Server都是支持GET中包含BODY这样的请求。虽然这种请求不可能从浏览器发出，但是现在的Web Server又不是只给浏览器用，已经完全地超出了HTML服务器的范畴了。
+
+2. HTTP协议对GET和POST都没有对长度的限制
+
+HTTP协议明确地指出了，HTTP头和Body都没有长度的要求。而对于URL长度上的限制，有两方面的原因造成：
+
+1.    浏览器。据说早期的浏览器会对URL长度做限制。据说IE对URL长度会限制在2048个字符内（流传很广，而且无数同事都表示认同）。但我自己试了一下，我构造了90K的URL通过IE9访问live.com，是正常的。网上的东西，哪怕是Wikipedia上的，也不能信。
+2.   服务器。URL长了，对服务器处理也是一种负担。原本一个会话就没有多少数据，现在如果有人恶意地构造几个几M大小的URL，并不停地访问你的服务器。服务器的最大并发数显然会下降。另一种攻击方式是，把告诉服务器Content-Length是一个很大的数，然后只给服务器发一点儿数据，嘿嘿，服务器你就傻等着去吧。哪怕你有超时设置，这种故意的次次访问超时也能让服务器吃不了兜着走。有鉴于此，多数服务器出于安全啦、稳定啦方面的考虑，会给URL长度加限制。但是这个限制是针对所有HTTP请求的，与GET、POST没有关系。
 
 session 与 cookie 区别
+是一个在客户端一个在服务端。因为Cookie存在客户端所以用户可以看见，所以也可以编辑伪造，不是十分安全。
+Session过多的时候会消耗服务器资源，所以大型网站会有专门的Session服务器，而Cookie存在客户端所以没什么问题。
+域的支持范围不一样，比方说a.com的Cookie在a.com下都能用，而www.a.com的Session在api.a.com下都不能用，解决这个问题的办法是JSONP或者跨域资源共享。
 
 session 分布式处理
+1.基于数据库的Session共享
+2.基于NFS共享文件系统
+3.基于memcached 的session，如何保证 memcached 本身的高可用性？
+4. 基于resin/tomcat web容器本身的session复制机制
+5. 基于TT/Redis 或 jbosscache 进行 session 共享。
+6. 基于cookie 进行session共享
 
 JDBC 流程
+1）加载驱动程序。
+2）建立连接。
+3）创建语句。
+4）执行语句。
+5）处理ResultSet
 
 MVC 设计思想
 
 equals 与 == 的区别
+== 比较的是变量(栈)内存中存放的对象的(堆)内存地址，用来判断两个对象的地址是否相同，即是否是指相同一个对象。比较的是真正意义上的指针操作。
+equals用来比较的是两个对象的内容是否相等，由于所有的类都是继承自java.lang.Object类的，所以适用于所有对象，如果没有对该方法进行覆盖的话，调用的仍然是Object类中的方法，而Object中的equals方法返回的却是==的判断。
 
 集合
 List 和 Set 区别
-
-List 和 Map 区别
+List：1.可以允许重复的对象。
+2.可以插入多个null元素。
+3.是一个有序容器，保持了每个元素的插入顺序，输出的顺序就是插入的顺序。
+4.常用的实现类有 ArrayList、LinkedList 和 Vector。ArrayList 最为流行，它提供了使用索引的随意访问，而 LinkedList 则对于经常需要从 List 中添加或删除元素的场合更为合适。
+Set：1.不允许重复对象
+ 2. 无序容器，你无法保证每个元素的存储顺序，TreeSet通过 Comparator  或者 Comparable 维护了一个排序顺序。
+ 3. 只允许一个 null 元素
+ 4.Set 接口最流行的几个实现类是 HashSet、LinkedHashSet 以及 TreeSet。最流行的是基于 HashMap 实现的 HashSet；TreeSet 还实现了 SortedSet 接口，因此 TreeSet 是一个根据其 compare() 和 compareTo() 的定义进行排序的有序容器。
+1.Map不是collection的子接口或者实现类。Map是一个接口。
+2.Map 的 每个 Entry 都持有两个对象，也就是一个键一个值，Map 可能会持有相同的值对象但键对象必须是唯一的。
+3. TreeMap 也通过 Comparator  或者 Comparable 维护了一个排序顺序。
+4. Map 里你可以拥有随意个 null 值但最多只能有一个 null 键。
+5.Map 接口最流行的几个实现类是 HashMap、LinkedHashMap、Hashtable 和 TreeMap。（HashMap、TreeMap最常用）
 
 Arraylist 与 LinkedList 区别
+1. ArrayList是实现了基于动态数组的数据结构，而LinkedList是基于链表的数据结构；
+2. 对于随机访问get和set，ArrayList要优于LinkedList，因为LinkedList要移动指针；
+3. 对于添加和删除操作add和remove，一般大家都会说LinkedList要比ArrayList快，因为ArrayList要移动数据。但是实际情况并非这样，对于添加或删除，LinkedList和ArrayList并不能明确说明谁快谁慢
 
 ArrayList 与 Vector 区别
+1. Vector & ArrayList 
+1）  Vector的方法都是同步的(Synchronized),是线程安全的(thread-safe)，而ArrayList的方法不是，由于线程的同步必然要影响性能，因此,ArrayList的性能比Vector好。 
+2） 当Vector或ArrayList中的元素超过它的初始大小时,Vector会将它的容量翻倍,而ArrayList只增加50%的大小，这样,ArrayList就有利于节约内存空间。
 
 HashMap 和 Hashtable 的区别
+Hashtable和HashMap它们的性能方面的比较类似 Vector和ArrayList，比如Hashtable的方法是同步的,而HashMap的不是。
 
 HashSet 和 HashMap 区别
+(1)HashSet是set的一个实现类,hashMap是Map的一个实现类,同时hashMap是hashTable的替代品(为什么后面会讲到). 
+(2)HashSet以对象作为元素,而HashMap以(key-value)的一组对象作为元素,且HashSet拒绝接受重复的对象.HashMap可以看作三个视图：key的Set，value的Collection，Entry的Set。 这里HashSet就是其实就是HashMap的一个视图。 
+HashSet内部就是使用Hashmap实现的，和Hashmap不同的是它不需要Key和Value两个值。 
+往hashset中插入对象其实只不过是内部做了
+ public boolean add(Object o) {
+            return map.put(o, PRESENT)==null;
+      }
 
 HashMap 和 ConcurrentHashMap 的区别
 
 HashMap 的工作原理及代码实现
 
 ConcurrentHashMap 的工作原理及代码实现
+jdk1.7中采用Segment + HashEntry的方式进行实现
+1.8中放弃了Segment臃肿的设计，取而代之的是采用Node + CAS + Synchronized来保证并发安全进行实现
 
 线程
 1.创建线程的方式及实现
