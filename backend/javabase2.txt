@@ -1,0 +1,513 @@
+基础篇
+基本功
+面向对象的特征
+
+1.final, finally, finalize 的区别
+
+2.int 和 Integer 有什么区别
+
+3.重载和重写的区别
+
+4.抽象类和接口有什么区别
+
+说说反射的用途及实现
+
+说说自定义注解的场景及实现
+
+HTTP 请求的 GET 与 POST 方式的区别
+
+session 与 cookie 区别
+
+session 分布式处理
+
+JDBC 流程
+
+MVC 设计思想
+
+equals 与 == 的区别
+
+集合
+List 和 Set 区别
+
+List 和 Map 区别
+
+Arraylist 与 LinkedList 区别
+
+ArrayList 与 Vector 区别
+
+HashMap 和 Hashtable 的区别
+
+HashSet 和 HashMap 区别
+
+HashMap 和 ConcurrentHashMap 的区别
+
+HashMap 的工作原理及代码实现
+
+ConcurrentHashMap 的工作原理及代码实现
+
+线程
+1.创建线程的方式及实现
+1）继承Thread类创建线程
+2）实现Runnable接口创建线程
+3）使用Callable和Future创建线程
+2.sleep() 、join（）、yield（）有什么区别
+sleep() 
+　　sleep()方法需要指定等待的时间，它可以让当前正在执行的线程在指定的时间内暂停执行，进入阻塞状态，该方法既可以让其他同优先级或者高优先级的线程得到执行的机会，也可以让低优先级的线程得到执行机会。但是sleep()方法不会释放“锁标志”，也就是说如果有synchronized同步块，其他线程仍然不能访问共享数据。 
+　　 
+wait() 
+　　wait()方法需要和notify()及notifyAll()两个方法一起介绍，这三个方法用于协调多个线程对共享数据的存取，所以必须在synchronized语句块内使用，也就是说，调用wait()，notify()和notifyAll()的任务在调用这些方法前必须拥有对象的锁。注意，它们都是Object类的方法，而不是Thread类的方法。 
+　　wait()方法与sleep()方法的不同之处在于，wait()方法会释放对象的“锁标志”。当调用某一对象的wait()方法后，会使当前线程暂停执行，并将当前线程放入对象等待池中，直到调用了notify()方法后，将从对象等待池中移出任意一个线程并放入锁标志等待池中，只有锁标志等待池中的线程可以获取锁标志，它们随时准备争夺锁的拥有权。当调用了某个对象的notifyAll()方法，会将对象等待池中的所有线程都移动到该对象的锁标志等待池。 
+　　除了使用notify()和notifyAll()方法，还可以使用带毫秒参数的wait(long timeout)方法，效果是在延迟timeout毫秒后，被暂停的线程将被恢复到锁标志等待池。 
+　　此外，wait()，notify()及notifyAll()只能在synchronized语句中使用，但是如果使用的是ReenTrantLock实现同步，该如何达到这三个方法的效果呢？解决方法是使用ReenTrantLock.newCondition()获取一个Condition类对象，然后Condition的await()，signal()以及signalAll()分别对应上面的三个方法。
+
+yield() 
+　　yield()方法和sleep()方法类似，也不会释放“锁标志”，区别在于，它没有参数，即yield()方法只是使当前线程重新回到可执行状态，所以执行yield()的线程有可能在进入到可执行状态后马上又被执行，另外yield()方法只能使同优先级或者高优先级的线程得到执行机会，这也和sleep()方法不同。
+
+join() 
+　　join()方法会使当前线程等待调用join()方法的线程结束后才能继续执行
+3.说说 CountDownLatch 原理
+https://www.jianshu.com/p/38c39e00ee4c
+4.说说 CyclicBarrier 原理
+https://www.jianshu.com/p/060761df128b
+说说 Semaphore 原理
+
+说说 Exchanger 原理
+https://www.jianshu.com/p/1eab24ca3a22
+说说 CountDownLatch 与 CyclicBarrier 区别
+
+ThreadLocal 原理分析
+ThreadLocal提供了set和get访问器用来访问与当前线程相关联的线程局部变量。
+可以从ThreadLocal的get函数中看出来，其中getmap函数是用t作为参数，这里t就是当前执行的线程。
+从而得知，get函数就是从当前线程的threadlocalmap中取出当前线程对应的变量的副本【注意，变量是保存在线程中的，而不是保存在ThreadLocal变量中】。当前线程中，有一个变量引用名字是threadLocals，这个引用是在ThreadLocal类中createmap函数内初始化的。每个线程都有一个这样的threadLocals引用的ThreadLocalMap，以ThreadLocal和ThreadLocal对象声明的变量类型作为参数。这样，我们所使用的ThreadLocal变量的实际数据，通过get函数取值的时候，就是通过取出Thread中threadLocals引用的map，然后从这个map中根据当前threadLocal作为参数，取出数据。现在，变量的副本从哪里取出来的（本文章提出的第一个问题）已经确认解决了。
+ThreadLocal操作值的时候是取得当前线程的ThreadLocalMap对象，然后把值设置到了这个对象中，这样对于不同的线程得到的就是不同的ThreadLocalMap，那么向其中保存值或者修改值都只是会影响到当前线程，这样就保证了线程安全。
+
+讲讲线程池的实现原理
+Java线程池的工厂类：Executors类,
+初始化4种类型的线程池：
+newFixedThreadPool()
+说明：初始化一个指定线程数的线程池，其中corePoolSize == maxiPoolSize，使用LinkedBlockingQuene作为阻塞队列
+特点：即使当线程池没有可执行任务时，也不会释放线程。
+newCachedThreadPool()
+说明：初始化一个可以缓存线程的线程池，默认缓存60s，线程池的线程数可达到Integer.MAX_VALUE，即2147483647，内部使用SynchronousQueue作为阻塞队列；
+特点：在没有任务执行时，当线程的空闲时间超过keepAliveTime，会自动释放线程资源；当提交新任务时，如果没有空闲线程，则创建新线程执行任务，会导致一定的系统开销；
+因此，使用时要注意控制并发的任务数，防止因创建大量的线程导致而降低性能。
+newSingleThreadExecutor()
+说明：初始化只有一个线程的线程池，内部使用LinkedBlockingQueue作为阻塞队列。
+特点：如果该线程异常结束，会重新创建一个新的线程继续执行任务，唯一的线程可以保证所提交任务的顺序执行
+newScheduledThreadPool()
+特定：初始化的线程池可以在指定的时间内周期性的执行所提交的任务，在实际的业务场景中可以使用该线程池定期的同步数据。
+总结：除了newScheduledThreadPool的内部实现特殊一点之外，其它线程池内部都是基于ThreadPoolExecutor类（Executor的子类）实现的。
+
+线程池的几种方式
+ThreadPoolExecutor（corePoolSize,maxPoolSize,keepAliveTime,timeUnit,workQueue,threadFactory,handle);   
+方法参数：
+corePoolSize：核心线程数
+maxPoolSize：最大线程数
+keepAliveTime：线程存活时间（在corePore<*<maxPoolSize情况下有用）
+timeUnit：存活时间的时间单位
+workQueue：阻塞队列（用来保存等待被执行的任务）
+注：关于workQueue参数的取值,JDK提供了4种阻塞队列类型供选择：
+ArrayBlockingQueue：基于数组结构的有界阻塞队列，按FIFO排序任务；
+inkedBlockingQuene：基于链表结构的阻塞队列，按FIFO排序任务，吞吐量通常要高于  
+SynchronousQuene：一个不存储元素的阻塞队列，每个插入操作必须等到另一个线程调用移除操作，否则插入操作一直处于阻塞状态，吞吐量通常要高于ArrayBlockingQuene；
+PriorityBlockingQuene：具有优先级的无界阻塞队列；
+threadFactory：线程工厂，主要用来创建线程；
+handler：表示当拒绝处理任务时的策略，有以下四种取值
+注：当线程池的饱和策略，当阻塞队列满了，且没有空闲的工作线程，如果继续提交任务，必须采取一种策略处理该任务，线程池提供了4种策略：
+ThreadPoolExecutor.AbortPolicy:丢弃任务并抛出RejectedExecutionException异常。
+ThreadPoolExecutor.DiscardPolicy：也是丢弃任务，但是不抛出异常。
+ThreadPoolExecutor.DiscardOldestPolicy：丢弃队列最前面的任务，然后重新尝试执行任务（重复此过程）
+ThreadPoolExecutor.CallerRunsPolicy：由调用线程处理该任务
+当然也可以根据应用场景实现RejectedExecutionHandler接口，自定义饱和策略，如记录日志或持久化存储不能处理的任务。
+
+线程的生命周期
+当线程被创建并启动以后，它既不是一启动就进入了执行状态，也不是一直处于执行状态。在线程的生命周期中，它要经过新建(New)、就绪（Runnable）、运行（Running）、阻塞(Blocked)和死亡(Dead)5种状态。尤其是当线程启动以后，它不可能一直"霸占"着CPU独自运行，所以CPU需要在多条线程之间切换，于是线程状态也会多次在运行、阻塞之间切换
+锁机制
+说说线程安全问题
+
+volatile 实现原理
+volatile 关键字，具有两个特性：1. 内存的可见性，2. 禁止指令重排序优化。
+内存可见性是指：被 volatile 关键字修饰的变量，当线程要对这个变量执行的写操作，都不会写入本地缓存，而是直接刷入主内存中。当线程读取被 volatile 关键字修饰的变量时，也是直接从主内存中读取。（简单的说，一个线程修改的状态对另一个线程是可见的）。注意：volatile 不能保证原子性。
+禁止指令重排序优化：有volatile修饰的变量，赋值后多执行了一个 “load addl $0x0, (%esp)” 操作，这个操作相当于一个内存屏障，保证指令重排序时不会把后面的指令重排序到内存屏障之前的位置。
+
+synchronize 实现原理
+synchronized 代码块是通过 monitorenter 和 monitorexit 指令实现的。synchronized 方法虽然在 vm 字节码层面并没有任何特别的指令来实现被 synchronized 修饰的方法，而是在 Class 文件的方法表中将该方法的 access_flags 字段中的 synchronized 标志位置1，表示该方法是同步方法。锁的实现有偏向锁、轻量级锁和重量级锁，其中偏向锁和轻量级锁是 JDK 针对锁的优化措施。在多线程的竞争下锁会升级，依次从偏向锁 -> 轻量级锁 -> 重量级锁，这里的锁只能升级但不能降级。在 Java 对象头中的 Mark Word 中存储了关于锁的标志位，其中：无锁和偏向锁为 00， 轻量级锁为 01，重量级锁为 10。
+引入偏向锁主要目的是：为了在无多线程竞争的情况下尽量减少不必要的轻量级锁执行路径(在无竞争的情况下把整个同步都消除掉，连 CAS 操作都不做了)。
+引入轻量级锁的主要目的是：在没有多线程竞争的前提下，减少传统的重量级锁使用操作系统互斥量产生的性能消耗(在无竞争的情况下使用 CAS 操作去消除同步使用的互斥量)。
+重量级锁通过对象内部的监视器（monitor）实现，其中 monitor 的本质是依赖于底层操作系统的 Mutex Lock 实现，操作系统实现线程之间的切换需要从用户态到内核态的切换，切换成本非常高。
+
+synchronized 与 lock 的区别
+两者区别：
+1.首先synchronized是java内置关键字，在jvm层面，Lock是个java类；
+2.synchronized无法判断是否获取锁的状态，Lock可以判断是否获取到锁；
+3.synchronized会自动释放锁(a 线程执行完同步代码会释放锁 ；b 线程执行过程中发生异常会释放锁)，Lock需在finally中手工释放锁（unlock()方法释放锁），否则容易造成线程死锁；
+4.用synchronized关键字的两个线程1和线程2，如果当前线程1获得锁，线程2线程等待。如果线程1阻塞，线程2则会一直等待下去，而Lock锁就不一定会等待下去，如果尝试获取不到锁，线程可以不用一直等待就结束了；
+5.synchronized的锁可重入、不可中断、非公平，而Lock锁可重入、可判断、可公平（两者皆可）
+6.Lock锁适合大量同步的代码的同步问题，synchronized锁适合代码少量的同步问题。
+
+CAS 乐观锁
+乐观锁
+乐观锁（ Optimistic Locking）其实是一种思想。相对悲观锁而言，乐观锁假设认为数据一般情况下不会造成冲突，所以在数据进行提交更新的时候，才会正式对数据的冲突与否进行检测，如果发现冲突了，则让返回用户错误的信息，让用户决定如何去做。
+上面提到的乐观锁的概念中其实已经阐述了他的具体实现细节：主要就是两个步骤：冲突检测和数据更新。其实现方式有一种比较典型的就是Compare and Swap(CAS)。
+CAS
+CAS是项乐观锁技术，当多个线程尝试使用CAS同时更新同一个变量时，只有其中一个线程能更新变量的值，而其它线程都失败，失败的线程并不会被挂起，而是被告知这次竞争中失败，并可以再次尝试。
+CAS 操作包含三个操作数 —— 内存位置（V）、预期原值（A）和新值(B)。如果内存位置的值与预期原值相匹配，那么处理器会自动将该位置值更新为新值。否则，处理器不做任何操作。无论哪种情况，它都会在 CAS 指令之前返回该位置的值。（在 CAS 的一些特殊情况下将仅返回 CAS 是否成功，而不提取当前值。）CAS 有效地说明了“我认为位置 V 应该包含值 A；如果包含该值，则将 B 放到这个位置；否则，不要更改该位置，只告诉我这个位置现在的值即可。”这其实和乐观锁的冲突检查+数据更新的原理是一样的。
+
+ABA 问题
+乐观锁用到的机制就是CAS，Compare and Swap。
+CAS有3个操作数，内存值V，旧的预期值A，要修改的新值B。当且仅当预期值A和内存值V相同时，将内存值V修改为B，否则什么都不做。
+乐观锁的业务场景及实现方式
+CAS看起来很爽，但是会导致“ABA问题”。
+CAS算法实现一个重要前提需要取出内存中某时刻的数据，而在下时刻比较并替换，那么在这个时间差类会导致数据的变化。
+比如说一个线程one从内存位置V中取出A，这时候另一个线程two也从内存中取出A，并且two进行了一些操作变成了B，然后two又将V位置的数据变成A，这时候线程one进行CAS操作发现内存中仍然是A，然后one操作成功。尽管线程one的CAS操作成功，但是不代表这个过程就是没有问题的。如果链表的头在变化了两次后恢复了原值，但是不代表链表就没有变化。因此前面提到的原子操作AtomicStampedReference/AtomicMarkableReference就很有用了。这允许一对变化的元素进行原子操作。
+
+核心篇
+数据存储
+MySQL 索引使用的注意事项
+
+说说反模式设计
+
+说说分库与分表设计
+
+分库与分表带来的分布式困境与应对之策
+
+说说 SQL 优化之道
+1、应尽量避免在 where 子句中使用!=或<>操作符，否则将引擎放弃使用索引而进行全表扫描。
+2、对查询进行优化，应尽量避免全表扫描，首先应考虑在 where 及 order by 涉及的列上建立索引。
+3、应尽量避免在 where 子句中对字段进行 null 值判断，否则将导致引擎放弃使用索引而进行全表扫描，如：
+select id from t where num is null
+可以在num上设置默认值0，确保表中num列没有null值，然后这样查询：
+select id from t where num=0
+4、尽量避免在 where 子句中使用 or 来连接条件，否则将导致引擎放弃使用索引而进行全表扫描，如：
+select id from t where num=10 or num=20
+可以这样查询：
+select id from t where num=10
+union all
+select id from t where num=20
+5、下面的查询也将导致全表扫描：(不能前置百分号)
+select id from t where name like ‘�c%’
+若要提高效率，可以考虑全文检索。
+6、in 和 not in 也要慎用，否则会导致全表扫描，如：
+select id from t where num in(1,2,3)
+对于连续的数值，能用 between 就不要用 in 了：
+select id from t where num between 1 and 3
+7、如果在 where 子句中使用参数，也会导致全表扫。因为SQL只有在运行时才会解析局部变量，但优化程序不能将访问计划的选择推迟到运行时；它必须在编译时进行选择。然 而，如果在编译时建立访问计划，变量的值还是未知的，因而无法作为索引选择的输入项。如下面语句将进行全表扫描：
+select id from t where num=@num
+可以改为强制查询使用索引：
+select id from t with(index(索引名)) where num=@num
+8、应尽量避免在 where 子句中对字段进行表达式操作，这将导致引擎放弃使用索引而进行全表扫描。如：
+select id from t where num/2=100
+应改为:
+select id from t where num=100*2
+9、应尽量避免在where子句中对字段进行函数操作，这将导致引擎放弃使用索引而进行全表扫描。如：
+select id from t where substring(name,1,3)=’abc’–name以abc开头的id
+select id from t where datediff(day,createdate,’2005-11-30′)=0–’2005-11-30′生成的id
+应改为:
+select id from t where name like ‘abc%’
+select id from t where createdate>=’2005-11-30′ and createdate<’2005-12-1′
+10、不要在 where 子句中的“=”左边进行函数、算术运算或其他表达式运算，否则系统将可能无法正确使用索引。
+11、在使用索引字段作为条件时，如果该索引是复合索引，那么必须使用到该索引中的第一个字段作为条件时才能保证系统使用该索引，否则该索引将不会被使 用，并且应尽可能的让字段顺序与索引顺序相一致。
+12、不要写一些没有意义的查询，如需要生成一个空表结构：
+select col1,col2 into #t from t where 1=0
+这类代码不会返回任何结果集，但是会消耗系统资源的，应改成这样：
+create table #t(…)
+13、很多时候用 exists 代替 in 是一个好的选择：
+select num from a where num in(select num from b)
+用下面的语句替换：
+select num from a where exists(select 1 from b where num=a.num)
+14、并不是所有索引对查询都有效，SQL是根据表中数据来进行查询优化的，当索引列有大量数据重复时，SQL查询可能不会去利用索引，如一表中有字段 sex，male、female几乎各一半，那么即使在sex上建了索引也对查询效率起不了作用。
+15、索引并不是越多越好，索引固然可以提高相应的 select 的效率，但同时也降低了 insert 及 update 的效率，因为 insert 或 update 时有可能会重建索引，所以怎样建索引需要慎重考虑，视具体情况而定。一个表的索引数最好不要超过6个，若太多则应考虑一些不常使用到的列上建的索引是否有 必要。
+16.应尽可能的避免更新 clustered 索引数据列，因为 clustered 索引数据列的顺序就是表记录的物理存储顺序，一旦该列值改变将导致整个表记录的顺序的调整，会耗费相当大的资源。若应用系统需要频繁更新 clustered 索引数据列，那么需要考虑是否应将该索引建为 clustered 索引。
+17、尽量使用数字型字段，若只含数值信息的字段尽量不要设计为字符型，这会降低查询和连接的性能，并会增加存储开销。这是因为引擎在处理查询和连接时会 逐个比较字符串中每一个字符，而对于数字型而言只需要比较一次就够了。
+18、尽可能的使用 varchar/nvarchar 代替 char/nchar ，因为首先变长字段存储空间小，可以节省存储空间，其次对于查询来说，在一个相对较小的字段内搜索效率显然要高些。
+19、任何地方都不要使用 select * from t ，用具体的字段列表代替“*”，不要返回用不到的任何字段。
+20、尽量使用表变量来代替临时表。如果表变量包含大量数据，请注意索引非常有限（只有主键索引）。
+21、避免频繁创建和删除临时表，以减少系统表资源的消耗。
+22、临时表并不是不可使用，适当地使用它们可以使某些例程更有效，例如，当需要重复引用大型表或常用表中的某个数据集时。但是，对于一次性事件，最好使 用导出表。
+23、在新建临时表时，如果一次性插入数据量很大，那么可以使用 select into 代替 create table，避免造成大量 log ，以提高速度；如果数据量不大，为了缓和系统表的资源，应先create table，然后insert。
+24、如果使用到了临时表，在存储过程的最后务必将所有的临时表显式删除，先 truncate table ，然后 drop table ，这样可以避免系统表的较长时间锁定。
+25、尽量避免使用游标，因为游标的效率较差，如果游标操作的数据超过1万行，那么就应该考虑改写。
+26、使用基于游标的方法或临时表方法之前，应先寻找基于集的解决方案来解决问题，基于集的方法通常更有效。
+27、与临时表一样，游标并不是不可使用。对小型数据集使用 FAST_FORWARD 游标通常要优于其他逐行处理方法，尤其是在必须引用几个表才能获得所需的数据时。在结果集中包括“合计”的例程通常要比使用游标执行的速度快。如果开发时 间允许，基于游标的方法和基于集的方法都可以尝试一下，看哪一种方法的效果更好。
+28、在所有的存储过程和触发器的开始处设置 SET NOCOUNT ON ，在结束时设置 SET NOCOUNT OFF 。无需在执行存储过程和触发器的每个语句后向客户端发送 DONE_IN_PROC 消息。
+29、尽量避免向客户端返回大数据量，若数据量过大，应该考虑相应需求是否合理。
+30、尽量避免大事务操作，提高系统并发能力。
+
+MySQL 遇到的死锁问题
+
+存储引擎的 InnoDB 与 MyISAM
+
+数据库索引的原理
+
+为什么要用 B-tree
+
+聚集索引与非聚集索引的区别
+
+limit 20000 加载很慢怎么解决
+1.子查询优化法
+先找出第一条数据，然后大于等于这条数据的id就是要获取的数据
+2.倒排表优化法
+倒排表法类似建立索引，用一张表来维护页数，然后通过高效的连接得到数据
+缺点：只适合数据数固定的情况，数据不能删除，维护页表困难
+3.反向查找优化法
+当偏移超过一半记录数的时候，先用排序，这样偏移就反转了
+缺点：order by优化比较麻烦，要增加索引，索引影响数据的修改效率，并且要知道总记录数，偏移大于数据的一半
+4.limit限制优化法
+把limit偏移量限制低于某个数。。超过这个数等于没数据，我记得alibaba的dba说过他们是这样做的
+5.只查索引法
+
+选择合适的分布式主键方案
+1. 数据库自增长序列或字段
+
+最常见的方式。利用数据库，全数据库唯一。
+
+优点：
+
+1）简单，代码方便，性能可以接受。
+
+2）数字ID天然排序，对分页或者需要排序的结果很有帮助。
+
+ 
+
+缺点：
+1）不同数据库语法和实现不同，数据库迁移的时候或多数据库版本支持的时候需要处理。
+2）在单个数据库或读写分离或一主多从的情况下，只有一个主库可以生成。有单点故障的风险。
+3）在性能达不到要求的情况下，比较难于扩展。
+4）如果遇见多个系统需要合并或者涉及到数据迁移会相当痛苦。
+5）分表分库的时候会有麻烦。
+优化方案：
+1）针对主库单点，如果有多个Master库，则每个Master库设置的起始数字不一样，步长一样，可以是Master的个数。比如：Master1 生成的是 1，4，7，10，Master2生成的是2,5,8,11 Master3生成的是 3,6,9,12。这样就可以有效生成集群中的唯一ID，也可以大大降低ID生成数据库操作的负载。
+2. UUID
+常见的方式。可以利用数据库也可以利用程序生成，一般来说全球唯一。
+优点
+1）简单，代码方便。
+2）生成ID性能非常好，基本不会有性能问题。
+3）全球唯一，在遇见数据迁移，系统数据合并，或者数据库变更等情况下，可以从容应对。
+缺点：
+1）没有排序，无法保证趋势递增。
+2）UUID往往是使用字符串存储，查询的效率比较低。
+3）存储空间比较大，如果是海量数据库，就需要考虑存储量的问题。
+4）传输数据量大
+5）不可读。
+4. Redis生成ID
+当使用数据库来生成ID性能不够要求的时候，我们可以尝试使用Redis来生成ID。这主要依赖于Redis是单线程的，所以也可以用生成全局唯一的ID。可以用Redis的原子操作 INCR和INCRBY来实现。
+5. Twitter的snowflake算法
+
+ObjectId 规则
+
+聊聊 MongoDB 使用场景
+
+倒排索引
+
+聊聊 ElasticSearch 使用场景
+
+缓存使用
+Redis 有哪些类型
+Redis 内部结构
+聊聊 Redis 使用场景
+Redis 持久化机制
+Redis 如何实现持久化
+Redis 集群方案与实现
+Redis 为什么是单线程的
+缓存奔溃
+缓存降级
+使用缓存的合理性问题
+消息队列
+消息队列的使用场景
+消息的重发补偿解决思路
+消息的幂等性解决思路
+消息的堆积解决思路
+自己如何实现消息队列
+如何保证消息的有序性
+
+框架
+Spring
+BeanFactory 和 ApplicationContext 有什么区别
+BeanFacotry是spring中比较原始的Factory。如XMLBeanFactory就是一种典型的BeanFactory。原始的BeanFactory无法支持spring的许多插件，如AOP功能、Web应用等。 
+ApplicationContext接口,它由BeanFactory接口派生而来，因而提供BeanFactory所有的功能。ApplicationContext以一种更向面向框架的方式工作以及对上下文进行分层和实现继承，ApplicationContext包还提供了以下的功能： 
+  • MessageSource, 提供国际化的消息访问  
+  • 资源访问，如URL和文件  
+  • 事件传播  
+  • 载入多个（有继承关系）上下文 ，使得每一个上下文都专注于一个特定的层次，比如应用的web层  
+
+Spring Bean 的生命周期
+Spring上下文中的Bean也类似，【Spring上下文的生命周期】
+1. 实例化一个Bean，也就是我们通常说的new
+2. 按照Spring上下文对实例化的Bean进行配置，也就是IOC注入
+3. 如果这个Bean实现了BeanNameAware接口，会调用它实现的setBeanName(String beanId)方法，此处传递的是Spring配置文件中Bean的ID
+4. 如果这个Bean实现了BeanFactoryAware接口，会调用它实现的setBeanFactory()，传递的是Spring工厂本身（可以用这个方法获取到其他Bean）
+5. 如果这个Bean实现了ApplicationContextAware接口，会调用setApplicationContext(ApplicationContext)方法，传入Spring上下文，该方式同样可以实现步骤4，但比4更好，以为ApplicationContext是BeanFactory的子接口，有更多的实现方法
+6. 如果这个Bean关联了BeanPostProcessor接口，将会调用postProcessBeforeInitialization(Object obj, String s)方法，BeanPostProcessor经常被用作是Bean内容的更改，并且由于这个是在Bean初始化结束时调用After方法，也可用于内存或缓存技术
+7. 如果这个Bean在Spring配置文件中配置了init-method属性会自动调用其配置的初始化方法
+8. 如果这个Bean关联了BeanPostProcessor接口，将会调用postAfterInitialization(Object obj, String s)方法
+注意：以上工作完成以后就可以用这个Bean了，那这个Bean是一个single的，所以一般情况下我们调用同一个ID的Bean会是在内容地址相同的实例
+9. 当Bean不再需要时，会经过清理阶段，如果Bean实现了DisposableBean接口，会调用其实现的destroy方法
+10. 最后，如果这个Bean的Spring配置中配置了destroy-method属性，会自动调用其配置的销毁方法
+以上10步骤可以作为面试或者笔试的模板，另外我们这里描述的是应用Spring上下文Bean的生命周期，如果应用Spring的工厂也就是BeanFactory的话去掉第5步就Ok了
+
+Spring IOC 如何实现
+ IOC容器就是具有依赖注入功能的容器，IOC容器负责实例化、定位、配置应用程序中的对象及建立这些对象间的依赖。应用程序无需直接在代码中new相关的对象，应用程序由IOC容器进行组装。在Spring中BeanFactory是IOC容器的实际代表者。
+Spring IOC容器如何知道哪些是它管理的对象呢？这就需要配置文件，Spring IOC容器通过读取配置文件中的配置元数据，通过元数据对应用中的各个对象进行实例化及装配。一般使用基于xml配置文件进行配置元数据，而且Spring与配置文件完全解耦的，可以使用其他任何可能的方式进行配置元数据，比如注解、基于java文件的、基于属性文件的配置都可以。
+
+说说 Spring AOP
+Spring AOP 实现原理
+1.IOC
+许多应用都是通过彼此间的相互合作来实现业务逻辑的，如类A要调用类B的方法，以前我们都是在类A中，通过自身new一个类B，然后在调用类B的方法，现在我们把new类B的事情交给spring来做，在我们调用的时候，容器会为我们实例化。
+2. IOC容器的初始化过程
+资源定位，即定义bean的xml-------》载入--------》IOC容器注册，注册beanDefinition
+IOC容器的初始化过程，一般不包含bean的依赖注入的实现，在spring IOC设计中，bean的注册和依赖注入是两个过程，，依赖注入一般发生在应用第一次索取bean的时候，但是也可以在xm中配置，在容器初始化的时候，这个bean就完成了初始化。
+3. 三种注入方式，构造器、接口、set注入，我们常用的是set注入
+4. bean是如何创建---  工厂模式
+5. 数据是如何注入-------反射
+6.AOP
+面向切面编程，在我们的应用中，经常需要做一些事情，但是这些事情与核心业务无关，比如，要记录所有update*方法的执行时间时间，操作人等等信息，记录到日志，
+通过spring的AOP技术，就可以在不修改update*的代码的情况下完成该需求。
+7.AOP的实现原理------代理
+
+动态代理（cglib 与 JDK）
+静态代理是通过在代码中显式定义一个业务实现类一个代理，在代理类中对同名的业务方法进行包装，用户通过代理类调用被包装过的业务方法；
+JDK动态代理是通过接口中的方法名，在动态生成的代理类中调用业务实现类的同名方法；
+CGlib动态代理是通过继承业务类，生成的动态代理类是业务类的子类，通过重写业务方法进行代理；
+
+Spring 事务实现方式
+实现spring事务的四种方式分别为：
+（1）编程式事务管理：需要手动编写代码，在实际开发中很少使用
+（2）声明式事务管理：
+（2.1）基于TransactionProxyFactoryBean的方式，需要为每个进行事务管理的类做相应配置
+（2.2）基于AspectJ的XML方式，不需要改动类，在XML文件中配置好即可
+（2.3）基于注解的方式，配置简单，需要在业务层类中添加注解
+
+Spring 事务底层原理
+
+如何自定义注解实现功能
+
+Spring MVC 运行流程
+
+Spring MVC 启动流程
+
+Spring 的单例实现原理
+大家真正要记住的是Spring对bean实例的创建是采用单例注册表的方式进行实现的，而这个注册表的缓存是HashMap对象，如果配置文件中的配置信息不要求使用单例，Spring会采用新建实例的方式返回对象实例
+
+Spring 框架中用到了哪些设计模式
+Spring框架中使用到了大量的设计模式，下面列举了比较有代表性的：
+代理模式—在AOP和remoting中被用的比较多。
+单例模式—在spring配置文件中定义的bean默认为单例模式。
+模板方法—用来解决代码重复的问题。比如. RestTemplate, JmsTemplate, JpaTemplate。
+工厂模式—BeanFactory用来创建对象的实例。
+适配器--spring aop
+装饰器--spring data  hashmapper
+观察者-- spring 时间驱动模型
+回调--Spring ResourceLoaderAware回调接口
+Spring 其他产品（Srping Boot、Spring Cloud、Spring Secuirity、Spring Data、Spring AMQP 等）
+
+Netty
+为什么选择 Netty
+说说业务中，Netty 的使用场景
+
+原生的 NIO 在 JDK 1.7 版本存在 epoll bug
+https://www.cnblogs.com/JAYIT/p/8241634.html
+Selector BUG出现的原因
+若Selector的轮询结果为空，也没有wakeup或新消息处理，则发生空轮询，CPU使用率100%，
+Netty的解决办法
+对Selector的select操作周期进行统计，每完成一次空的select操作进行一次计数，
+若在某个周期内连续发生N次空轮询，则触发了epoll死循环bug。
+重建Selector，判断是否是其他线程发起的重建请求，若不是则将原SocketChannel从旧的Selector上去除注册，重新注册到新的Selector上，并将原来的Selector关闭。
+
+什么是TCP 粘包/拆包、TCP粘包/拆包的解决办法
+发生TCP粘包或拆包有很多原因，现列出常见的几点，可能不全面，欢迎补充，
+1、要发送的数据大于TCP发送缓冲区剩余空间大小，将会发生拆包。
+2、待发送数据大于MSS（最大报文长度），TCP在传输前将进行拆包。
+3、要发送的数据小于TCP发送缓冲区的大小，TCP将多次写入缓冲区的数据一次发送出去，将会发生粘包。
+4、接收数据端的应用层没有及时读取接收缓冲区中的数据，将发生粘包。
+粘包、拆包解决办法
+通过以上分析，我们清楚了粘包或拆包发生的原因，那么如何解决这个问题呢？解决问题的关键在于如何给每个数据包添加边界信息，常用的方法有如下几个：
+1、发送端给每个数据包添加包首部，首部中应该至少包含数据包的长度，这样接收端在接收到数据后，通过读取包首部的长度字段，便知道每一个数据包的实际长度了。
+2、发送端将每个数据包封装为固定长度（不够的可以通过补0填充），这样接收端每次从接收缓冲区中读取固定长度的数据就自然而然的把每个数据包拆分开来。
+3、可以在数据包之间设置边界，如添加特殊符号，这样，接收端通过这个边界就可以将不同的数据包拆分开。
+
+Netty 线程模型
+Netty通过Reactor模型基于多路复用器接收并处理用户请求，内部实现了两个线程池，boss线程池和work线程池，其中boss线程池的线程负责处理请求的accept事件，当接收到accept事件的请求时，把对应的socket封装到一个NioSocketChannel中，并交给work线程池，其中work线程池负责请求的read和write事件，由对应的Handler处理。
+单线程模型：所有I/O操作都由一个线程完成，即多路复用、事件分发和处理都是在一个Reactor线程上完成的。既要接收客户端的连接请求,向服务端发起连接，又要发送/读取请求或应答/响应消息。一个NIO 线程同时处理成百上千的链路，性能上无法支撑，速度慢，若线程进入死循环，整个程序不可用，对于高负载、大并发的应用场景不合适。
+多线程模型：有一个NIO 线程（Acceptor） 只负责监听服务端，接收客户端的TCP 连接请求；NIO 线程池负责网络IO 的操作，即消息的读取、解码、编码和发送；1 个NIO 线程可以同时处理N 条链路，但是1 个链路只对应1 个NIO 线程，这是为了防止发生并发操作问题。但在并发百万客户端连接或需要安全认证时，一个Acceptor 线程可能会存在性能不足问题。
+主从多线程模型：Acceptor 线程用于绑定监听端口，接收客户端连接，将SocketChannel 从主线程池的Reactor 线程的多路复用器上移除，重新注册到Sub 线程池的线程上，用于处理I/O 的读写等操作，从而保证mainReactor只负责接入认证、握手等操作；
+
+说说 Netty 的零拷贝
+Netty的零拷贝实现？
+Netty的接收和发送ByteBuffer采用DIRECT BUFFERS，使用堆外直接内存进行Socket读写，不需要进行字节缓冲区的二次拷贝。堆内存多了一次内存拷贝，JVM会将堆内存Buffer拷贝一份到直接内存中，然后才写入Socket中。ByteBuffer由ChannelConfig分配，而ChannelConfig创建ByteBufAllocator默认使用Direct Buffer
+
+CompositeByteBuf 类可以将多个 ByteBuf 合并为一个逻辑上的 ByteBuf, 避免了传统通过内存拷贝的方式将几个小Buffer合并成一个大的Buffer。addComponents方法将 header 与 body 合并为一个逻辑上的 ByteBuf, 这两个 ByteBuf 在CompositeByteBuf 内部都是单独存在的, CompositeByteBuf 只是逻辑上是一个整体
+
+通过 FileRegion 包装的FileChannel.tranferTo方法 实现文件传输, 可以直接将文件缓冲区的数据发送到目标 Channel，避免了传统通过循环write方式导致的内存拷贝问题。
+
+通过 wrap方法, 我们可以将 byte[] 数组、ByteBuf、ByteBuffer等包装成一个 Netty ByteBuf 对象, 进而避免了拷贝操作。
+
+Selector BUG：若Selector的轮询结果为空，也没有wakeup或新消息处理，则发生空轮询，CPU使用率100%，
+
+Netty的解决办法：对Selector的select操作周期进行统计，每完成一次空的select操作进行一次计数，若在某个周期内连续发生N次空轮询，则触发了epoll死循环bug。重建Selector，判断是否是其他线程发起的重建请求，若不是则将原SocketChannel从旧的Selector上去除注册，重新注册到新的Selector上，并将原来的Selector关闭。
+
+Netty 内部执行流程
+服务端依次发生的步骤
+建立服务端监听套接字ServerSocketChannel，以及对应的管道pipeline；
+启动boss线程，将ServerSocketChannel注册到boss线程持有的selector中，并将注册返回的selectionKey赋值给ServerSocketChannel关联的selectionKey变量；
+在ServerSocketChannel对应的管道中触发channelRegistered事件；
+绑定IP和端口
+触发channelActive事件，并将ServerSocketChannel关联的selectionKey的OP_ACCEPT位置为1。
+客户端发起connect请求后，boss线程正在运行的select循环检测到了该ServerSocketChannel的ACCEPT事件就绪，则通过accept系统调用建立一个已连接套接字SocketChannel，并为其创建对应的管道；
+在服务端监听套接字对应的管道中触发channelRead事件；
+channelRead事件由ServerBootstrapAcceptor的channelRead方法响应：为已连接套接字对应的管道加入ChannelInitializer处理器；启动一个worker线程，并将已连接套接字的注册任务加入到worker线程的任务队列中；
+worker线程执行已连接套接字的注册任务：将已连接套接字注册到worker线程持有的selector中，并将注册返回的selectionKey赋值给已连接套接字关联的selectionKey变量；在已连接套接字对应的管道中触发channelRegistered事件；channelRegistered事件由ChannelInitializer的channelRegistered方法响应：将自定义的处理器（譬如EchoServerHandler）加入到已连接套接字对应的管道中；在已连接套接字对应的管道中触发channelActive事件；channelActive事件由已连接套接字对应的管道中的inbound处理器的channelActive方法响应；将已连接套接字关联的selectionKey的OP_READ位置为1；至此，worker线程关联的selector就开始监听已连接套接字的READ事件了。
+在worker线程运行的同时，Boss线程接着在服务端监听套接字对应的管道中触发channelReadComplete事件。
+客户端向服务端发送消息后，worker线程正在运行的selector循环会检测到已连接套接字的READ事件就绪。则通过read系统调用将消息从套接字的接受缓冲区中读到AdaptiveRecvByteBufAllocator（可以自适应调整分配的缓存的大小）分配的缓存中；
+在已连接套接字对应的管道中触发channelRead事件；
+channelRead事件由EchoServerHandler处理器的channelRead方法响应：执行write操作将消息存储到ChannelOutboundBuffer中；
+在已连接套接字对应的管道中触发ChannelReadComplete事件；
+ChannelReadComplete事件由EchoServerHandler处理器的channelReadComplete方法响应：执行flush操作将消息从ChannelOutboundBuffer中flush到套接字的发送缓冲区中；
+客户端依次发生的步骤
+建立套接字SocketChannel，以及对应的管道pipeline；
+启动客户端线程，将SocketChannel注册到客户端线程持有的selector中，并将注册返回的selectionKey赋值给SocketChannel关联的selectionKey变量；
+触发channelRegistered事件；
+channelRegistered事件由ChannelInitializer的channelRegistered方法响应：将客户端自定义的处理器（譬如EchoClientHandler）按顺序加入到管道中；
+向服务端发起connect请求，并将SocketChannel关联的selectionKey的OP_CONNECT位置为1；
+开始三次握手，客户端线程正在运行的select循环检测到了该SocketChannel的CONNECT事件就绪，则将关联的selectionKey的OP_CONNECT位置为0，再通过调用finishConnect完成连接的建立；
+触发channelActive事件；
+channelActive事件由EchoClientHandler的channelActive方法响应，通过调用ctx.writeAndFlush方法将消息发往服务端；
+首先将消息存储到ChannelOutboundBuffer中；（如果ChannelOutboundBuffer存储的所有未flush的消息的大小超过高水位线writeBufferHighWaterMark（默认值为64 * 1024），则会触发ChannelWritabilityChanged事件）
+然后将消息从ChannelOutboundBuffer中flush到套接字的发送缓冲区中；（如果ChannelOutboundBuffer存储的所有未flush的消息的大小小于低水位线，则会触发ChannelWritabilityChanged事件）
+
+Netty 重连实现
+使用 Netty 实现心跳机制的关键就是利用 IdleStateHandler 来产生对应的 idle 事件.
+一般是客户端负责发送心跳的 PING 消息, 因此客户端注意关注 ALL_IDLE 事件, 在这个事件触发后, 客户端需要向服务器发送 PING 消息, 告诉服务器"我还存活着".
+服务器是接收客户端的 PING 消息的, 因此服务器关注的是 READER_IDLE 事件, 并且服务器的 READER_IDLE 间隔需要比客户端的 ALL_IDLE 事件间隔大(例如客户端ALL_IDLE 是5s 没有读写时触发, 因此服务器的 READER_IDLE 可以设置为10s)
+当服务器收到客户端的 PING 消息时, 会发送一个 PONG 消息作为回复. 一个 PING-PONG 消息对就是一个心跳交互.
+在client在连接服务器的方法上加上一个监听，当发生断线的时候进行重新连接即可。
+
+微服务篇
+微服务
+前后端分离是如何做的
+微服务哪些框架
+你怎么理解 RPC 框架
+说说 RPC 的实现原理
+说说 Dubbo 的实现原理
+你怎么理解 RESTful
+说说如何设计一个良好的 API
+如何理解 RESTful API 的幂等性
+如何保证接口的幂等性
+说说 CAP 定理、 BASE 理论
+怎么考虑数据一致性问题
+说说最终一致性的实现方案
+你怎么看待微服务
+微服务与 SOA 的区别
+如何拆分服务
+微服务如何进行数据库管理
+如何应对微服务的链式调用异常
+对于快速追踪与定位问题
+微服务的安全
+分布式
+谈谈业务中使用分布式的场景
+Session 分布式方案
+分布式锁的场景
+分布是锁的实现方案
+分布式事务
+集群与负载均衡的算法与实现
+说说分库与分表设计
+分库与分表带来的分布式困境与应对之策
