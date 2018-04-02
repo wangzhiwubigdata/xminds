@@ -165,6 +165,9 @@ http://blog.csdn.net/zhangweiguangsunjiao/article/details/46659707?ref=myread
 7、灾难恢复--memcache挂掉后，数据不可恢复; redis数据丢失后可以通过aof恢复
 8、Redis支持数据的备份，即master-slave模式的数据备份。
 
+代码更清晰，处理逻辑更简单
+不用去考虑各种锁的问题，不存在加锁释放锁操作，没有因为可能出现死锁而导致的性能消耗
+不存在多进程或者多线程导致的切换而消耗CPU
 
 2.redis有什么数据类型？在哪些场景下使用？
 String
