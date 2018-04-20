@@ -1,0 +1,489 @@
+
+
+1. 线程安全机制
+
+在开始讨论java多线程安全机制之前，首先从内存模型来了解一下什么是多线程的安全性。
+
+我们都知道java的内存模型中有主内存和线程的工作内存之分，主内存上存放的是线程共享的变量（实例字段，静态字段和构成数组的元素），线程的工作内存是线程私有的空间，存放的是线程私有的变量（方法参数与局部变量）。线程在工作的时候如果要操作主内存上的共享变量，为了获得更好的执行性能并不是直接去修改主内存而是会在线程私有的工作内存中创建一份变量的拷贝（缓存），在工作内存上对变量的拷贝修改之后再把修改的值刷回到主内存的变量中去，JVM提供了8中原子操作来完成这一过程：lock, unlock, read, load, use, assign, store, write。深入理解java虚拟机-jvm最高特性与实践这本书中有一个图很好的表示了线程，主内存和工作内存之间的关系：
+
+
+
+
+
+如果只有一个线程当然不会有什么问题，但是如果有多个线程同时在操作主内存中的变量，因为8种操作的非连续性和线程抢占cpu执行的机制就会带来冲突的问题，也就是多线程的安全问题。线程安全的定义就是：如果线程执行过程中不会产生共享资源的冲突就是线程安全的。
+
+
+
+Java里面一般用以下几种机制保证线程安全：
+
+1.互斥同步锁（悲观锁）
+
+1）Synchorized
+
+2）ReentrantLock
+
+互斥同步锁也叫做阻塞同步锁，特征是会对没有获取锁的线程进行阻塞。
+
+要理解互斥同步锁，首选要明白什么是互斥什么是同步。简单的说互斥就是非你即我，同步就是顺序访问。互斥同步锁就是以互斥的手段达到顺序访问的目的。操作系统提供了很多互斥机制比如信号量，互斥量，临界区资源等来控制在某一个时刻只能有一个或者一组线程访问同一个资源。
+
+Java里面的互斥同步锁就是Synchorized和ReentrantLock，前者是由语言级别实现的互斥同步锁，理解和写法简单但是机制笨拙，在JDK6之后性能优化大幅提升，即使在竞争激烈的情况下也能保持一个和ReentrantLock相差不多的性能，所以JDK6之后的程序选择不应该再因为性能问题而放弃synchorized。ReentrantLock是API层面的互斥同步锁，需要程序自己打开并在finally中关闭锁，和synchorized相比更加的灵活，体现在三个方面：等待可中断，公平锁以及绑定多个条件。但是如果程序猿对ReentrantLock理解不够深刻，或者忘记释放lock，那么不仅不会提升性能反而会带来额外的问题。另外synchorized是JVM实现的，可以通过监控工具来监控锁的状态，遇到异常JVM会自动释放掉锁。而ReentrantLock必须由程序主动的释放锁。
+
+互斥同步锁都是可重入锁，好处是可以保证不会死锁。但是因为涉及到核心态和用户态的切换，因此比较消耗性能。JVM开发团队在JDK5-JDK6升级过程中采用了很多锁优化机制来优化同步无竞争情况下锁的性能。比如：自旋锁和适应性自旋锁，轻量级锁，偏向锁，锁粗化和锁消除。
+
+
+
+
+
+2.非阻塞同步锁
+
+1) 原子类（CAS）
+
+非阻塞同步锁也叫乐观锁，相比悲观锁来说，它会先进行资源在工作内存中的更新，然后根据与主存中旧值的对比来确定在此期间是否有其他线程对共享资源进行了更新，如果旧值与期望值相同，就认为没有更新，可以把新值写回内存，否则就一直重试直到成功。它的实现方式依赖于处理器的机器指令：CAS（Compare And Swap）
+
+JUC中提供了几个Automic类以及每个类上的原子操作就是乐观锁机制。
+
+不激烈情况下，性能比synchronized略逊，而激烈的时候，也能维持常态。激烈的时候，Atomic的性能会优于ReentrantLock一倍左右。但是其有一个缺点，就是只能同步一个值，一段代码中只能出现一个Atomic的变量，多于一个同步无效。因为他不能在多个Atomic之间同步。 
+
+非阻塞锁是不可重入的，否则会造成死锁。
+
+
+3.无同步方案
+
+1）可重入代码
+
+在执行的任何时刻都可以中断-重入执行而不会产生冲突。特点就是不会依赖堆上的共享资源
+
+2）ThreadLocal/Volaitile
+
+线程本地的变量，每个线程获取一份共享变量的拷贝，单独进行处理。
+
+3)  线程本地存储
+
+如果一个共享资源一定要被多线程共享，可以尽量让一个线程完成所有的处理操作，比如生产者消费者模式中，一般会让一个消费者完成对队列上资源的消费。典型的应用是基于请求-应答模式的web服务器的设计
+
+
+
+
+==============
+多线程并发机制
+==============
+
+一、多线程
+1、操作系统有两个容易混淆的概念，进程和线程。
+进程：一个计算机程序的运行实例，包含了需要执行的指令；有自己的独立地址空间，包含程序内容和数据；不同进程的地址空间是互相隔离的；进程拥有各种资源和状态信息，包括打开的文件、子进程和信号处理。
+线程：表示程序的执行流程，是CPU调度执行的基本单位；线程有自己的程序计数器、寄存器、堆栈和帧。同一进程中的线程共用相同的地址空间，同时共享进进程锁拥有的内存和其他资源。
+2、Java标准库提供了进程和线程相关的API，进程主要包括表示进程的Java.lang.Process类和创建进程的java.lang.ProcessBuilder类；
+表示线程的是java.lang.Thread类，在虚拟机启动之后，通常只有Java类的main方法这个普通线程运行，运行时可以创建和启动新的线程；还有一类守护线程（damon thread），守护线程在后台运行，提供程序运行时所需的服务。当虚拟机中运行的所有线程都是守护线程时，虚拟机终止运行。
+3、线程间的可见性：一个线程对进程中共享的数据的修改，是否对另一个线程可见
+可见性问题：
+a、CPU采用时间片轮转等不同算法来对线程进行调度
+[java] view plain copy
+public class IdGenerator{    
+   private int value = 0;    
+   public int getNext(){    
+      return value++;    
+   }    
+}    
+对于IdGenerator的getNext()方法，在多线程下不能保证返回值是不重复的：各个线程之间相互竞争CPU时间来获取运行机会，CPU切换可能发生在执行间隙。
+以上代码getNext()的指令序列：CPU切换可能发生在7条指令之间，多个getNext的指令交织在一起。
+[java] view plain copy
+aload_0    
+dup    
+getfield #12    
+dup_x1    
+iconst_1    
+iadd    
+putfield #12   
+b、CPU缓存：
+目前CPU一般采用层次结构的多级缓存的架构，有的CPU提供了L1、L2和L3三级缓存。当CPU需要读取主存中某个位置的数据时，会一次检查各级缓存中是否存在对应的数据。如果有，直接从缓存中读取，这比从主存中读取速度快很多。当CPU需要写入时，数据先被写入缓存中，之后再某个时间点写回主存。所以某些时间点上，缓存中的数据与主存中的数据可能是不一致。
+c、指令顺序重排
+出行性能考虑，编译器在编译时可能会对字节代码的指令顺序进行重新排列，以优化指令的执行顺序，在单线程中不会有问题，但在多线程可能产生与可见性相关的问题。
+
+二、Java内存模型（Java Memory Model）
+屏蔽了CPU缓存等细节，只关注主存中的共享变量；关注对象的实例域、静态域和数组元素；关注线程间的动作。
+1、volatile关键词：用来对共享变量的访问进行同步，上一次写入操作的结果对下一次读取操作是肯定可见的。（在写入volatile变量值之后，CPU缓存中的内容会被写回内存；在读取volatile变量时，CPU缓存中的对应内容会被置为失效，重新从主存中进行读取），volatile不使用锁，性能优于synchronized关键词。
+用来确保对一个变量的修改被正确地传播到其他线程中。
+2、final关键词
+final关键词声明的域的值只能被初始化一次，一般在构造方法中初始化。。（在多线程开发中，final域通常用来实现不可变对象）
+当对象中的共享变量的值不可能发生变化时，在多线程中也就不需要同步机制来进行处理，故在多线程开发中应尽可能使用不可变对象。
+另外，在代码执行时，final域的值可以被保存在寄存器中，而不用从主存中频繁重新读取。
+3、java基本类型的原子操作
+1）基本类型，引用类型的复制引用是原子操作；（即一条指令完成）
+2）long与double的赋值，引用是可以分割的，非原子操作；
+3）要在线程间共享long或double的字段时，必须在synchronized中操作，或是声明成volatile
+
+三、Java提供的线程同步方式
+1、synchronized关键字
+方法或代码块的互斥性来完成实际上的一个原子操作。（方法或代码块在被一个线程调用时，其他线程处于等待状态）
+所有的Java对象都有一个与synchronzied关联的监视器对象（monitor），允许线程在该监视器对象上进行加锁和解锁操作。
+a、静态方法：Java类对应的Class类的对象所关联的监视器对象。
+b、实例方法：当前对象实例所关联的监视器对象。
+c、代码块：代码块声明中的对象所关联的监视器对象。
+注：当锁被释放，对共享变量的修改会写入主存；当活得锁，CPU缓存中的内容被置为无效。编译器在处理synchronized方法或代码块，不会把其中包含的代码移动到synchronized方法或代码块之外，从而避免了由于代码重排而造成的问题。
+例：以下方法getNext()和getNextV2() 都获得了当前实例所关联的监视器对象
+[java] view plain copy
+public class SynchronizedIdGenerator{    
+   private int value = 0;    
+   public synchronized int getNext(){    
+      return value++;    
+   }    
+   public int getNextV2(){    
+      synchronized(this){    
+         return value++;    
+      }    
+   }    
+}    
+2、Object类的wait、notify和notifyAll方法
+生产者和消费者模式，判断缓冲区是否满来消费，缓冲区是否空来生产的逻辑。如果用while 和 volatile也可以做，不过本质上会让线程处于忙等待，占用CPU时间，对性能造成影响。
+wait： 将当前线程放入，该对象的等待池中，线程A调用了B对象的wait()方法，线程A进入B对象的等待池，并且释放B的锁。（这里，线程A必须持有B的锁，所以调用的代码必须在synchronized修饰下，否则直接抛出java.lang.IllegalMonitorStateException异常）。
+notify：将该对象中等待池中的线程，随机选取一个放入对象的锁池，当当前线程结束后释放掉锁， 锁池中的线程即可竞争对象的锁来获得执行机会。
+notifyAll：将对象中等待池中的线程，全部放入锁池。
+（notify锁唤醒的线程选择由虚拟机实现来决定，不能保证一个对象锁关联的等待集合中的线程按照所期望的顺序被唤醒，很可能一个线程被唤醒之后，发现他所要求的条件并没有满足，而重新进入等待池。因为当等待池中包含多个线程时，一般使用notifyAll方法，不过该方法会导致线程在没有必要的情况下被唤醒，之后又马上进入等待池，对性能有影响，不过能保证程序的正确性）
+工作流程：
+a、Consumer线程A 来 看产品，发现产品为空，调用产品对象的wait()，线程A进入产品对象的等待池并释放产品的锁。
+b、Producer线程B获得产品的锁，执行产品的notifyAll()，Consumer线程A从产品的等待池进入锁池，Producer线程B生产产品，然后退出释放锁。
+c、Consumer线程A获得产品锁，进入执行，发现有产品，消费产品，然后退出。
+例子：
+[java] view plain copy
+public synchronized String pop(){    
+  this.notifyAll();// 唤醒对象等待池中的所有线程，可能唤醒的就是 生产者（当生产者发现产品满，就会进入对象的等待池，这里代码省略，基本略同）    
+   while(index == -1){//如果发现没产品，就释放锁，进入对象等待池    
+      this.wait();    
+   }//当生产者生产完后，消费者从this.wait()方法再开始执行，第一次还会执行循环，万一产品还是为空，则再等待，所以这里必须用while循环，不能用if    
+   String good = buffer[index];    
+   buffer[index] = null;    
+   index--;    
+   return good;// 消费完产品，退出。    
+}    
+注：wait()方法有超时和不超时之分，超时的在经过一段时间，线程还在对象的等待池中，那么线程也会推出等待状态。
+3、线程状态转换：
+已经废弃的方法：stop、suspend、resume、destroy，这些方法在实现上时不安全的。
+线程的状态：NEW、RUNNABLE、BLOCKED、WAITING、TIMED_WAITING（有超时的等待）、TERMINATED。
+a、方法sleep()进入的阻塞状态，不会释放对象的锁（即大家一起睡，谁也别想执行代码），所以不要让sleep方法处在synchronized方法或代码块中，否则造成其他等待获取锁的线程长时间处于等待。
+b、方法join()则是主线程等待子线程完成，再往下执行。例如main方法新建两个线程A和B
+[java] view plain copy
+public static void main(String[] args) throws InterruptedException {      
+Thread t1 = new Thread(new ThreadTesterA());      
+Thread t2 = new Thread(new ThreadTesterB());      
+t1.start();      
+t1.join(); // 等t1执行完再往下执行    
+t2.start();      
+t2.join(); // 在虚拟机执行中，这句可能被忽略    
+}    
+
+c、方法interrupt()，向被调用的对象线程发起中断请求。如线程A通过调用线程B的d的interrupt方法来发出中断请求，线程B来处理这个请求，当然也可以忽略，这不是必须的。Object类的wait()、Thread类的join()和sleep方法都会抛出受检异常java.lang.InterruptedException，通过interrupt方法中断该线程会导致线程离开等待状态。对于wait()调用来说，线程需要重新获取监视器对象上的锁之后才能抛出InterruptedException异常，并致以异常的处理逻辑。
+可以通过Thread类的isInterrupted方法来判断是否有中断请求发生，通常可以利用这个方法来判断是否退出线程（类似上面的volatitle修饰符的例子）；
+Thread类还有个方法Interrupted()，该方法不但可以判断当前线程是否被中断，还会清楚线程内部的中断标记，如果返回true，即曾被请求中断，同时调用完后，清除中断标记。
+如果一个线程在某个对象的等待池，那么notify和interrupt 都可以使该线程从等待池中被移除。如果同时发生，那么看实际发生顺序。如果是notify先，那照常唤醒，没影响。如果是interrupt先，并且虚拟机选择让该线程中断，那么即使nofity，也会忽略该线程，而唤醒等待池中的另一个线程。
+e、yield()，尝试让出所占有的CPU资源，让其他线程获取运行机会，对操作系统上的调度器来说是一个信号，不一定立即切换线程。（在实际开发中，测试阶段频繁调用yeid方法使线程切换更频繁，从而让一些多线程相关的错误更容易暴露出来）。
+
+四、非阻塞方式
+线程之间同步机制的核心是监视对象上的锁，竞争锁来获得执行代码的机会。当一个对象获取对象的锁，然后其他尝试获取锁的对象会处于等待状态，这种锁机制的实现方式很大程度限制了多线程程序的吞吐量和性能（线程阻塞），且会带来死锁（线程A有a对象锁，等着获取b对象锁，线程B有b对象锁，等待获取a对象锁）和优先级倒置（优先级低的线程获得锁，优先级高的只能等待对方释放锁）等问题。
+如果能不阻塞线程，又能保证多线程程序的正确性，就能有更好的性能。
+在程序中，对共享变量的使用一般遵循一定的模式，即读取、修改和写入三步组成。之前碰到的问题是，这三步执行中可能线程执行切换，造成非原子操作。锁机制是把这三步变成一个原子操作。
+目前CPU本身实现 将这三步 合起来 形成一个原子操作，无需线程锁机制干预，常见的指令是“比较和替换”（compare and swap,CAS），这个指令会先比较某个内存地址的当前值是不是指定的旧指，如果是，就用新值替换，否则什么也不做，指令返回的结果是内存地址的当前值。通过CAS指令可以实现不依赖锁机制的非阻塞算法。一般做法是把CAS指令的调用放在一个无限循环中，不断尝试，知道CAS指令成功完成修改。
+java.util.concurrent.atomic包中提供了CAS指令。（不是所有CPU都支持CAS，在某些平台，java.util.concurrent.atomic的实现仍然是锁机制）
+atomic包中提供的Java类分成三类：
+1、支持以原子操作来进行更新的数据类型的Java类（AtomicBoolean、AtomicInteger、AtomicReference），在内存模型相关的语义上，这四个类的对象类似于volatile变量。
+类中的常用方法：
+a、compareAndSet：接受两个参数，一个是期望的旧值，一个是替换的新值。
+b、weakCompareAndSet：效果同compareAndSet（JSR中表示weak原子方式读取和有条件地写入变量但不创建任何 happen-before 排序，但在源代码中和compareAndSet完全一样，所以并没有按JSR实现）
+c、get和set：分别用来直接获取和设置变量的值。
+d、lazySet：与set类似，但允许编译器把lazySet方法的调用与后面的指令进行重排，因此对值得设置操作有可能被推迟。
+例：
+[java] view plain copy
+public class AtomicIdGenerator{    
+   private final AtomicInter counter = new AtomicInteger(0);    
+   public int getNext(){    
+      return counter.getAndIncrement();    
+   }    
+}    
+// getAndIncrement方法的内部实现方式，这也是CAS方法的一般模式，CAS方法不一定成功，所以包装在一个无限循环中，直到成功    
+public final int getAndIncrement(){    
+   for(;;){    
+      int current = get();    
+      int next = current +1;    
+      if(compareAndSet(current,next))    
+         return current;    
+   }    
+}    
+
+2、提供对数组类型的变量进行处理的Java类，AtomicIntegerArray、AtomicLongArray和AtomicReferenceArray类。（同上，只是放在类数组里，调用时也只是多了一个操作元素索引的参数）
+3、通过反射的方式对任何对象中包含的volatitle变量使用CAS方法，AtomicIntegerFieldUpdater、AtomicLongFieldUpdater、AtomicReferenceFieldUpdater。他们提供了一种方式把CAS的功能扩展到了任何Java类中声明为volatitle的域上。（灵活，但语义较弱，因为对象的volatitle可能被非atomic的其他方式被修改）
+[java] view plain copy
+public class TreeNode{    
+   private volatile TreeNode parent;    
+// 静态工厂方法    
+   private static final AtomicReferenceFieldUpdater<TreeNode, TreeNode> parentUpdater = AtomicReferenceFieldUpdater.newUpdater(TreeNode.class,TreeNode.class,"parent");    
+public boolean compareAndSetParent(TreeNode expect, TreeNode update){    
+      return parentUpdater.compareAndSet(this, expect, update);    
+}    
+}    
+
+注：java.util.concurrent.atomic包中的Java类属于比较底层的实现，一般作为java.util.concurrent包中很多非阻塞的数据结构的实现基础。
+比较多的用AtomicBoolean、AtomicInteger、AtomicLong和AtomicReference。在实现线程安全的计数器时，AtomicInteger和AtomicLong类时最佳的选择。
+五、高级同步机制（比synchronized更灵活的加锁机制）
+synchronized和volatile，以及wait、notify等方法抽象层次低，在程序开发中使用比较繁琐，易出错。
+而多线程之间的交互来说，存在某些固定的模式，如生产者-消费者和读者-写者模式，把这些模式抽象成高层API，使用起来会非常方便。
+java.util.concurrent包为多线程提供了高层的API，满足日常开发中的常见需求。
+常用接口
+1、Lock接口，表示一个锁方法：
+a、lock()，获取所，如果无法获取所锁，会处于等待状态
+b、unlock()，释放锁。（一般放在finally代码块中）
+c、lockInterruptibly()，与lock()类似，但允许当前线程在等待获取锁的过程中被中断。（所以要处理InterruptedException）
+d、tryLock()，以非阻塞方式获取锁，如果无法获取锁，则返回false。（tryLock()的另一个重载可以指定超时，如果指定超时，当无法获取锁，会等待而阻塞，同时线程可以被中断）
+2、ReadWriteLock接口，表示两个锁，读取的共享锁和写入的排他锁。（适合常见的读者--写者场景）
+ReadWriteLock接口的readLock和writeLock方法来获取对应的锁的Lock接口的实现。
+在多数线程读取，少数线程写入的情况下，可以提高多线程的性能，提高使用该数据结构的吞吐量。
+如果是相反的情况，较多的线程写入，则接口会降低性能。
+3、ReentrantLock类和ReentrantReadWriteLock，分别为上面两个接口的实现类。
+他们具有重入性：即允许一个线程多次获取同一个锁（他们会记住上次获取锁并且未释放的线程对象，和加锁的次数，getHoldCount()）
+同一个线程每次获取锁，加锁数+1，每次释放锁，加锁数-1，到0，则该锁被释放，可以被其他线程获取。
+[java] view plain copy
+public class LockIdGenrator{    
+//new ReentrantLock(true)是重载，使用更加公平的加锁机制，在锁被释放后，会优先给等待时间最长的线程，避免一些线程长期无法获得锁    
+   private int ReentrantLock lock = ReentrantLock();    
+   privafte int value = 0;    
+   public int getNext(){    
+      lock.lock();      //进来就加锁，没有锁会等待    
+      try{    
+         return value++;//实际操作    
+      }finally{    
+         lock.unlock();//释放锁    
+      }    
+   }    
+}    
+注：重入性减少了锁在各个线程之间的等待，例如便利一个HashMap，每次next()之前加锁，之后释放，可以保证一个线程一口气完成便利，而不会每次next()之后释放锁，然后和其他线程竞争，降低了加锁的代价， 提供了程序整体的吞吐量。（即，让一个线程一口气完成任务，再把锁传递给其他线程）。
+4、Condition接口，Lock接口代替了synchronized，Condition接口替代了object的wait、nofity。
+a、await()，使当前线程进入等待状态，知道被唤醒或中断。重载形式可以指定超时时间。
+b、awaitNanos()，以纳秒为单位等待。
+c、awaitUntil()，指定超时发生的时间点，而不是经过的时间，参数为java.util.Date。
+d、awaitUninterruptibly()，前面几种会响应其他线程发出的中断请求，他会无视，直到被唤醒。
+注：与Object类的wait()相同，await()会释放其所持有的锁。
+e、signal()和signalAll， 相当于 notify和notifyAll
+[java] view plain copy
+Lock lock = new ReentrantLock();    
+Condition condition = lock.newCondition();    
+lock.lock();    
+try{    
+   while(/*逻辑条件不满足*/){    
+      condition.await();       
+   }    
+}finally{    
+   lock.unlock();    
+}    
+
+六、数据结构（多线程程序使用的高性能数据结构）
+java.util.concurrent包中提供了一些适合多线程程序使用的高性能数据结构，包括队列和集合类对象等。
+1、队列
+a、BlockingQueue接口：线程安全的阻塞式队列；当队列已满时，想队列添加会阻塞；当队列空时，取数据会阻塞。（非常适合消费者-生产者模式）
+阻塞方式：put()、take()。
+非阻塞方式：offer()、poll()。
+实现类：基于数组的固定元素个数的ArrayBolockingQueue和基于链表结构的不固定元素个数的LinkedBlockQueue类。
+b、BlockingDeque接口： 与BlockingQueue相似，但可以对头尾进行添加和删除操作的双向队列；方法分为两类，分别在队首和对尾进行操作。
+实现类：标准库值提供了一个基于链表的实现，LinkedBlockgingDeque。
+2、集合类
+在多线程程序中，如果共享变量时集合类的对象，则不适合直接使用java.util包中的集合类。这些类要么不是线程安全，要么在多线程下性能比较差。
+应该使用java.util.concurrent包中的集合类。
+a、ConcurrentMap接口： 继承自java.util.Map接口
+putIfAbsent()：只有在散列表不包含给定键时，才会把给定的值放入。
+remove()：删除条目。
+replace(key,value)：把value 替换到给定的key上。
+replace(key, oldvalue, newvalue)：CAS的实现。
+实现类：ConcurrentHashMap：
+创建时，如果可以预估可能包含的条目个数，可以优化性能。（因为动态调整所能包含的数目操作比较耗时，这个HashMap也一样，只是多线程下更耗时）。
+创建时，预估进行更新操作的线程数，这样实现中会根据这个数把内部空间划分为对应数量的部分。（默认是16，如果只有一个线程进行写操作，其他都是读取，那么把值设为1 可以提高性能）。
+注：当从集合中创建出迭代器遍历Map元素时，不一定能看到正在添加的数据，只能和集合保证弱一致性。（当然使用迭代器不会因为查看正在改变的Map，而抛出java.util.ConcurrentModifycationException）
+b、CopyOnWriteArrayList接口：继承自java.util.List接口。
+顾名思义，在CopyOnWriteArrayList的实现类，所有对列表的更新操作都会新创建一个底层数组的副本，并使用副本来存储数据；对列表更新操作加锁，读取操作不加锁。
+适合多读取少修改的场景，如果更新操作多，那么不适合用，同样迭代器只能表示创建时列表的状态，更新后使用了新的底层数组，迭代器还是引用旧的底层数组。
+
+七、多线程任务的执行
+过去线程的执行，是先创建Thread类的想，再调用start方法启动，这种做法要求开发人员对线程进行维护，在线程较多时，一般创建一个线程池同一管理，同时降低重复创建线程的开销
+在J2SE5.0中，java.util.concurrent包提供了丰富的用来管理线程和执行任务的实现。
+1、基本接口（描述任务）
+a、Callable接口：
+Runnable接口受限于run方法的类型签名，而Callable只有一个方法call()，可以有返回值，可以抛出受检异常。
+b、Future接口：
+过去，需要异步线程的任务执行结果，要求主线程和任务执行线程之间进行同步和数据传递。
+Future简化了任务的异步执行，作为异步操作的一个抽象。调用get()方法可以获取异步的执行结果，如果任务没有执行完，会等待，直到任务完成或被取消，cancel()可以取消。
+c、Delayed接口：
+延迟执行任务，getDelay()返回当前剩余的延迟时间，如果不大于0，说明延迟时间已经过去，应该调度并执行该任务。
+2、组合接口（描述任务）
+a、RunnableFuture接口：继承自Runnable接口和Future接口。
+当来自Runnalbe接口中的run方法成功执行之后，相当于Future接口表示的异步任务已经完成，可以通过get()获取运行结果。
+b、ScheduledFuture接口：继承Future接口和Delayed接口，表示一个可以调用的异步操作。
+c、RunnableScheduledFuture接口：继承自Runnable、Delayed和Future，接口中包含isPeriodic，表明该异步操作是否可以被重复执行。
+3、Executor接口、ExcutorServer接口、ScheduleExecutorService接口和CompletionService接口（描述任务执行）
+a、executor接口，execute()用来执行一个Runnable接口的实现对象，不同的Executor实现采取不同执行策略，但提供的任务执行功能比较弱。
+b、excutorServer接口，继承自executor；
+提供了对任务的管理：submit()，可以吧Callable和Runnable作为任务提交，得到一个Future作为返回，可以获取任务结果或取消任务。
+提供批量执行：invokeAll()和invokeAny()，同时提交多个Callable；invokeAll()，会等待所有任务都执行完成，返回一个包含每个任务对应Future的列表；invokeAny()，任何一个任务成功完成，即返回该任务结果。
+提供任务关闭：shutdown()、shutdownNow()来关闭服务，前者不允许新的任务提交，后者试图终止正在运行和等待的任务，并返回已经提交单没有被运行的任务列表。（两个方法都不会等待服务真正关闭，只是发出关闭请求。）。shutdownDow，通常做法是向线程发出中断请求，所以确保提交的任务实现了正确的中断处理逻辑。
+c、ScheduleExecutorService接口，继承自excutorServer接口：支持任务的延迟执行和定期执行，可以执行Callable或Runnable。
+schedule()，调度一个任务在延迟若干时间之后执行；
+scheduleAtFixedRate()：在初始延迟后，每隔一段时间循环执行；在下一次执行开始时，上一次执行可能还未结束。（同一时间，可能有多个）
+scheduleWithFixedDelay：同上，只是在上一次任务执行完后，经过给定的间隔时间再开始下一次执行。（同一时间，只有一个）
+以上三个方法都返回ScheduledFuture接口的实现对象。
+d、CompletionService接口，共享任务执行结果。
+通常在使用ExecutorService接口，通过submit提交任务，并得到一个Future接口来获取任务结果，如果任务提交者和执行结果的使用者是程序的不同部分，那就要把Future在不同部分进行传递；而CompletionService就是解决这个问题，程序不同部分可以共享CompletionService，任务提交后，执行结果可以通过take（阻塞），poll（非阻塞）来获取。
+标准库提供的实现是 ExecutorCompletionService，在创建时，需要提供一个Executor接口的实现作为参数，用来实际执行任务。
+例：多线程方式下载文件
+[java] view plain copy
+public class FileDownloader{    
+   // 线程池    
+   private final ExecutorService executor = Executors.newFixedThreadPool(10);    
+   public boolean download(final URL url, final Path path){    
+   Future<Path> future = executor.submit(new Callable<Path>(){ //submit提交任务    
+      public Path call(){    
+         //这里就省略IOException的处理了    
+         InputStream is = url.openStream();    
+         Files.copy(is, path, StandardCopyOption.REPLACE_EXISTING);    
+         return path;    
+      });    
+      try{    
+         return future.get() !=null ? true : false;    
+      }<span style="font-family: Arial, Helvetica, sans-serif;">catch(InterruptedException | ExecutionException e){</span>    
+             return false;    
+      }    
+   }    
+   public void close(){//当不再使用FileDownloader类的对象时，应该使用close方法关闭其中包含的ExecutorService接口的实现对象，否则虚拟机不会退出，占用内存不释放    
+      executor.shutdown();// 发出关闭请求，此时不会再接受新任务    
+      try{    
+         if(!executor.awaitTermination(3, TimeUnit.MINUTES)){// awaitTermination 来等待一段时间，使正在执行的任务或等待的任务有机会完成    
+            executor.shutdownNow();// 如果等待时间过后还有任务没完成，则强制结束    
+            executor.awaitTermination(1, TimeUnit.MINUTES);// 再等待一段时间，使被强制结束的任务完成必要的清理工作    
+         }    
+      }catch(InterruptedException e){    
+         executor.shutdownNow();    
+         Thread.currentThread().interrupt();    
+      }    
+   }    
+}    
+
+八、Java SE 7 新特性
+对java.util.concurrent包进行更新，增加了新的轻量级任务执行框架fork/join和多阶段线程同步工具。
+1、轻量级任务执行框架fork/join
+这个框架的目的主要是更好地利用底层平台上的多核和多处理器来进行并行处理。
+通过分治算法或map/reduce算法来解决问题。
+fork/join 类比于 map/reduce。
+fork操作是把一个大的问题划分为若干个较小的问题，划分过程一般为递归，直到可以直接进行计算的粒度适合的子问题；子问题在结算后，可以得到整个问题的部分解
+join操作收集子结果，合并，得到完整解，也可能是 递归进行的。
+相对一般的线程池实现，F/J框架的优势在任务的处理方式上。在一般线程池中，一个线程由于某些原因无法运行，会等待；而在F/J，某个子问题由于等待另外一个子问题的完成而无法继续运行，那么处理该子问题的线程会主动寻找其他尚未运行的子问题来执行。这种方式减少了等待时间，提高了性能。
+为了F/J能高效，在每个子问题视线中应避免使用synchronized或其他方式进行同步，也不应使用阻塞式IO或过多访问共享变量。在理想情况下，每个子问题都应值进行CPU计算，只使用每个问题的内部对象，唯一的同步应只发生在子问题和创建它的父问题之间。（这完全就是Hadoop的MapReduce嘛）
+a、ForkJoinTask类：表示一个由F/J框架执行的任务，该类实现了Future接口，可以按照Future接口的方式来使用。（表示任务）
+fork()，异步方式启动任务的执行。
+join()，等待任务完成并返回执行结果。
+在创建自己的任务时，最好不要直接继承自ForkJoinTask，而是继承其子类，RecuriveTask或RecursiveAction，前者可以返回结果，后者不行。
+b、ForkJoinPool类：表示任务执行，实现了ExecutorService接口，除了可以执行ForkJoinTask，也可以执行Callable和Runnable。（任务执行）
+执行任务的两大类：
+第一类：execute、invoke或submit方法：直接提交任务。
+第二类：fork()：运行ForkJoinTask在执行过程中的子任务。
+一般作法是表示整个问题的ForkJoinTask用第一类提交，执行过程中产生的子任务不需要处理，ForkJoinPool会负责子任务执行。
+例：查找数组中的最大值
+[java] view plain copy
+private static class MaxValueTask extends RecursiveTask<Long>{    
+   private final long[] array;    
+   private final int start;    
+   private final int end;    
+   MaxValueTask(long[] array, int start, int end){    
+      this.array = array;    
+      this.start = start;    
+      this.end = end;    
+   }    
+   //compute是RecursiveTask的主方法    
+   protected long compute(){    
+      long max = Long.MIN_VALUE;    
+      if(end - start < RANG_LENGTH){//寻找最大值    
+         for(int i = start; i<end;i++{    
+            if(array[i] > max){    
+               max = array[i];    
+            }    
+         }    
+      }else{// 二分任务    
+         int mid = (start + end) /2;    
+         MaxValueTask lowTask = new MaxValueTask(array, start , mid);    
+         MaxValueTask highTask = new MaxValueTask(array, mid, end);    
+         lowTask.fork();// 异步启动任务    
+         highTask.fork();    
+         max = Math.max(max, lowTask.join());//等待执行结果    
+         max = Math.max(max, highTask.join();    
+      }    
+      return max;    
+   }    
+   public Long calculate(long[] array){    
+      MaxValueTask task = new MaxValueTask(array, 0 , array.length);    
+      Long result = forkJoinPool.invoke(task);    
+      return result;    
+   }    
+}    
+
+注：这个例子是示例，但从性能上说直接对整个数组顺序比较效率高，毕竟多线程所带来的额外开销过大。
+在实际中，F/J框架发挥作用的场合很多，比如在一个目录包含的所有文本中搜索某个关键字，可以每个文件创建一个子任务。
+如果相关的功能可以用递归和分治来解决，就适合F/J。
+2、多阶段线程同步工具
+Phaser类是Java SE 7中新增的一个使用同步工具，功能和灵活性比倒数闸门和循环屏障要强很多。
+在F/J框架中的子任务之间要进行同步时，应优先考虑Phaser。
+Phaser把多个线程写作执行的任务划分成多个阶段（phase），编程时要明确各个阶段的任务，每个阶段都可以有任意个参与者，线程可以随时注册并参与到某个阶段，当一个阶段中所有线程都成功完成之后，Phaser的onAdvance()被调用，可以通过覆盖添加自定义处理逻辑（类似循环屏障的使用的Runnable接口），然后Phaser类会自动进入下个阶段。如此循环，知道Phaser不再包含任何参与者。
+Phaser创建后，初始阶段编号为0，构造函数中指定初始参与个数。
+register()，bulkRegister()，动态添加一个或多个参与者。
+arrive()，某个参与者完成任务后调用
+arriveAndDeregister()，任务完成，取消自己的注册。
+arriveAndAwaitAdvance()，自己完成等待其他参与者完成。，进入阻塞，直到Phaser成功进入下个阶段。
+awaitAdvance()、awaitAdvanceInterruptibly()，等待phaser进入下个阶段，参数为当前阶段的编号，后者可以设置超时和处理中断请求。
+另外，Phaser的一个重要特征是多个Phaser可以组成树形结构，Phaser提供了构造方法来指定当前对象的父对象；当一个子对象参与者>0，会自动注册到父对象中；当=0，自动解除注册。
+例：从指定网址，下载img标签的照片
+阶段1、处理网址对应的html文本，和抽取img的链接；2、创建图片下载子线程，主线程等待；3、子线程下载图片，主线程等待；4、任务完成退出
+[java] view plain copy
+public class WebPageImageDownloader{    
+   private final Phaser phaser = new Phaser(1);//初始参与数1，代表主线程。    
+   public void download(URL url, final Path path) throws IOException{    
+      String content = getContent(url);//获得HTML文本，省略。    
+      List<URL> imageUrls = extractImageUrls(content);//获得图片链接，省略。    
+      for(final URL imageUrl : imageUrls){    
+         phaser.register();//子线程注册    
+         new Thread(){    
+            public void run(){    
+               phaser.arriveAndAwaitAdvance();//第二阶段的等待，等待进入第三阶段    
+               try{    
+                  InputStream is = imageUrl.openStream();    
+                  File.copy(is, getSavePath(path, imageUrl), StandardCopyOption.REPLACE_EXISTING);    
+               }catch(IOException e){    
+                  e.printStackTrace():    
+               }finally{    
+                  phaser.arriveAndDeregister();//子线程完成任务，退出。    
+               }    
+            }    
+        }.start();    
+      }    
+      phaser.arriveAndAwaitAdvance();//第二阶段等待，子线程在注册    
+      phaser.arriveAndAwaitAdvance();//第三阶段等待，子线程在下载    
+      phaser.arriveAndDeregister();//所有线程退出。    
+   }    
+}    
+
+九、ThreadLocal类
+java.lang.ThreadLocal，线程局部变量，把一个共享变量变为一个线程的私有对象。不同线程访问一个ThreadLocal类的对象时，锁访问和修改的事每个线程变量各自独立的对象。通过ThreadLocal可以快速把一个非线程安全的对象转换成线程安全的对象。（同时也就不能达到数据传递的作用了）。
+a、get()和set()分别用来获取和设置当前线程中包含的对象的值。
+b、remove()，删除。
+c、initialValue()，初始化值。如果没有通过set方法设置值，第一个调用get，会通过initValue来获取对象的初始值。
+ThreadLoacl的一般用法，创建一个ThreadLocal的匿名子类并覆盖initalValue()，把ThreadLoacl的使用封装在另一个类中
+[java] view plain copy
+public class ThreadLocalIdGenerator{    
+   private static final ThreadLocal<IdGenerator> idGenerator = new ThreadLocal<IdGenerator>(){    
+         protected IdGenerator initalValue(){    
+            return new IdGenerator();//IdGenerator 是个初始int value =0,然后getNext(){  return value++}    
+         }    
+      };    
+   public static int getNext(){    
+      return idGenerator.get().getNext();    
+   }    
+}    
+
+ThreadLoal的另外一个作用是创建线程唯一的对象，在有些情况，一个对象在代码中各个部分都需要用到，传统做法是把这个对象作为参数在代码间传递，如果使用这个对I昂的代码都在同一个线程，可以封装在ThreadLocal中。
+如：在多线程中，生成随机数
+java.util.Random会带来竞争问题，java.util.concurrent.ThreadLocalRandom类提供多线程下的随机数声场，底层是ThreadLoacl。
+
+
+
+
