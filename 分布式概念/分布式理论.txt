@@ -34,7 +34,35 @@ Quorum机制分析
 至于如何处理同步过程中冲突的数据，则需要视情况而定。
  比如，(V2，V2，V1，V1，V1），R=3，如果读取的3个副本是：(V1，V1，V1)则高版本的 V2需要丢弃。
 如果读取的3个副本是（V2，V1，V1），则低版本的V1需要同步到V2
- 
+----
+三，Quorum机制应用实例
+
+HDFS高可用性实现
+
+ HDFS的运行依赖于NameNode，如果NameNode挂了，那么整个HDFS就用不了了，因此就存在单点故障(single point of failure)；其次，如果需要升级或者维护停止NameNode，整个HDFS也用不了。为了解决这个问题，采用了QJM机制(Quorum Journal Manager)实现HDFS的HA（High Availability）。注意，一开始采用的“共享存储”机制，关于共享存储机制的不足，可参考：（还提到了QJM的优点）
+
+In a typical HA cluster, two separate machines are configured as NameNodes.
+At any point in time, exactly one of the NameNodes is in an Active state, and the other is in a Standby state. 
+The Active NameNode is responsible for all client operations in the cluster, while the Standby is simply acting as a slave, 
+maintaining enough state to provide a fast failover if necessary.
+为了实现HA，需要两台NameNode机器，一台是Active NameNode，负责Client请求。另一台是StandBy NameNode，负责与Active NameNode同步数据，从而快速 failover。
+
+那么，这里就有个问题，StandBy NameNode是如何同步Active NameNode上的数据的呢？主要同步是哪些数据呢？
+
+数据同步就用到了Quorum机制。同步的数据 主要是EditLog。
+
+In order for the Standby node to keep its state synchronized with the Active node, 
+both nodes communicate with a group of separate daemons called “JournalNodes” (JNs). 
+数据同步用到了一个第三方”集群“：Journal Nodes。Active NameNode 和 StandBy NameNode 都与JournalNodes通信，从而实现同步。
+
+''''''''''''''''''''''''''''''''''
+
+每次 NameNode 写 EditLog 的时候，除了向本地磁盘写入 EditLog 之外，也会并行地向 JournalNode 集群之中的每一个 JournalNode 发送写请求，只要大多数 (majority) 的 JournalNode 节点返回成功就认为向 JournalNode 集群写入 EditLog 成功。如果有 2N+1 台 JournalNode，那么根据大多数的原则，最多可以容忍有 N 台 JournalNode 节点挂掉。
+
+这就是：Quorum机制。每次写入JournalNode的机器数目达到大多数(W)时，就认为本次写操作成功了。
+
+-------------------------------
+
 BASE理论
 
 BASE是Basically Available（基本可用）、Soft state（软状态）和Eventually consistent（最终一致性）三个短语的缩写。BASE理论是对CAP中一致性和可用性权衡的结果，其来源于对大规模互联网系统分布式实践的总结， 是基于CAP定理逐步演化而来的。BASE理论的核心思想是：即使无法做到强一致性，但每个应用都可以根据自身业务特点，采用适当的方式来使系统达到最终一致性。接下来看一下BASE中的三要素：

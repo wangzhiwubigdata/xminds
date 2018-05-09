@@ -199,7 +199,7 @@ Transactions
 
 https://www.cnblogs.com/mrhgw/p/6278619.html
 
-3.redis的主从复制如何实现？redis集群模式如何实现的？redis的key如何寻址？
+3.redis的复制如何实现？redis集群模式如何实现的？redis的key如何寻址？
 
 Redis 使用异步复制。 从 Redis 2.8 开始， 从服务器会以每秒一次的频率向主服务器报告复制流（replication stream）的处理进度。
 一个主服务器可以有多个从服务器。
@@ -368,8 +368,121 @@ Global ordinals
 Index warmer 
 调整aggregation的collect_mode 
 上SSD
+使用bulk请求
+并且每个请求不超过几十M，因为太大会导致内存使用过大
+如何提高ES的性能
+不要返回较大的结果集
+
+ES是设计成一个搜索引擎的，只擅长返回匹配查询较少文档，如果需要返回非常多的文档需要使用Scroll。
+
+避免稀疏
+
+因为ES是基于Lucene来索引和存储数据的，所以对稠密的数据更有效。Lucene能够有效的确定文档是通过一个整数的文档id，无论有没有数据都会话费一个字节存储id。稀疏主要影响norms和doc_values，一些可以避免稀疏的推荐：
+
+避免将不相关的数据放到相同的索引中
+
+规范的文档结构
+
+使用相同的字段名来保存同样的数据。
+
+避免类型
+
+不用norms和doc_values在稀疏字段
+
+调整索引速度
+使用bulk请求
+
+并且每个请求不超过几十M，因为太大会导致内存使用过大
+
+使用 multiple workers/threads发送数据到ES
+
+多进程或者线程，如果看到TOO_MANY_REQUESTS (429)和EsRejectedExecutionException则说明ES跟不上索引的速度，当集群的I/O或者CPU饱和就得到了工作者的数量。
+
+增加刷新间隔
+
+index.refresh_interval默认是1s，可以改成30s以减少合并压力。
+
+在加载大量数据时候可以暂时不用refresh和repliccas
+
+index.refresh_interval to -1 and index.number_of_replicas to 0
+
+禁用swapping
+
+禁用swapping
+
+给文件缓存分配内存
+
+缓存是用来缓存I/O操作的，至少用一般的内存来运行ES文件缓存。
+
+使用更快的硬件
+
+使用SSD作为存储设备。
+使用本地存储，避免使用NFS或者SMB
+注意使用虚拟存储，比如亚马逊的EBS
+索引缓冲大小
+
+indices.memory.index_buffer_size通常是JVM的0.1，确保他足够处理至多512MB的索引。
+
+调整搜索速度
+给文件系统缓存大内存
+
+至少给可用内存的一半到文件系统缓存。
+
+使用更快的硬件
+
+使用SSD作为存储设备。
+使用性能更好的CPU，高并发
+使用本地存储，避免使用NFS或者SMB
+注意使用虚拟存储，比如亚马逊的EBS
+文档建模
+
+避免链接，嵌套会使查询慢几倍，而亲自关系能使查询慢几百倍，所以如果同样的问题可以通过没有链接的非规范回答就可以提升速度。
+
+预索引数据
+
+不明觉厉
+
+映射
+
+数值型数据不一定要映射成整形或者长整型
+
+避免scripts
+
+如果实在要使用，就用painless和expressions
+
+强势合并只读索引
+
+https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-forcemerge.html
+不要强势合并正在写的索引
+
+准备全局顺序
+
+准备文件系统缓存
+
+index.store.preload，如果内存不是很大会使搜索变得缓慢。
+
+调整磁盘使用
+禁用不需要的功能
+
+不需要过滤时可以禁用索引“index”：false
+如果你不需要text字段的score，可以禁用”norms”：false
+如果不需要短语查询可以不索引positions"indexe_options":"freqs"
+不用默认的动态字符串匹配
+
+不要使用_all
+
+使用best_compression
+
+使用最小的足够用的数值类型
+
+byte,short,integer,long
+half_float,float,double
+
 
 https://www.cnblogs.com/cutd/p/5800795.html
+
+
+
 
 3.es的查询是一个怎么样的过程？底层的lucence介绍一下？到排索引知道吗？
 es和mongo有什么区别？什么场景下使用？
@@ -561,6 +674,18 @@ Redis Sentinel 是一个分布式系统，你可以在一个系统中运行多�
 sentinel的一些设计思路和zookeeper非常类似，事实上，你可以不使用sentinel，而是自己开发一个监控redis的zk客户端也能够完成相应的设计要求。
 
 序列化的目的是将一个实现了Serializable接口的对象转换成一个字节序列,可以。 把该字节序列保存起来(例如:保存在一个文件里),以后可以随时将该字节序列恢复为原来的对象.
+
+增量同步
+Redis增量同步主要指Slave完成初始化后开始正常工作时，Master发生的写操作同步到Slave的过程。通常情况下，Master每执行一个写命令就会向Slave发送相同的写命令，然后Slave接收并执行。
+全量同步
+　　Redis全量复制一般发生在Slave初始化阶段，这时Slave需要将Master上的所有数据都复制一份。具体步骤如下： 
+　　1）从服务器连接主服务器，发送SYNC命令； 
+　　2）主服务器接收到SYNC命名后，开始执行BGSAVE命令生成RDB文件并使用缓冲区记录此后执行的所有写命令； 
+　　3）主服务器BGSAVE执行完后，向所有从服务器发送快照文件，并在发送期间继续记录被执行的写命令； 
+　　4）从服务器收到快照文件后丢弃所有旧数据，载入收到的快照； 
+　　5）主服务器快照发送完毕后开始向从服务器发送缓冲区中的写命令； 
+　　6）从服务器完成对快照的载入，开始接收命令请求，并执行来自主服务器缓冲区的写命令； 
+
 
 缓存穿透：
 
