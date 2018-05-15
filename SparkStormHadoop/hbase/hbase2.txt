@@ -188,3 +188,32 @@ hbase-site.sh的配置
 
 hbase.zookeeper.quorum="host1:2181,host2:2181"
 
+hbase中Compaction的理解及RegionServer内存的使用，CacheBlock机制
+
+Compaction有两种类型：
+
+(1)minor compaction:属于轻量级。将多个小的storefile文件重写为数量较少的大storefile文件，减少存储文件的数量，实际上是个多路归并的过程。它不会删除被标记为“删除”的数据和以往过期的数据，并且执行过一次minor合并操作后，还会有多个storefile文件。因为Hfile的每个文件都是经过归类的，所以合并速度很快，只受到磁盘I/O性能的影响。
+
+(2)major compaction：属于重量级。将一个region中，一个列簇的若干个storefile重写为一个storefile,它能扫描所有的<key,value>对，顺序重写所有的数据，重写数据的过程中，会略过做了删除标记的数据，断言删除在此时生效,同时会阻塞所有客户端对该操作所属的region的请求直到合并完毕，最后删除已合并的storefile文件
+
+RegionServer的内存，在设置的时候，一般这样配置：
+
+（1）MemStore ,约占40%的内存空间(主要用于写)：
+
+写请求会先写入memstore,RegionServer会给每个region提供一个memstore, memstore写满以后，会启动flush刷新到磁盘。当memstore的总大小超过限制时，会强行启动flush进程，从最大的memstore开始flush知道低于限制
+
+（2）BlockCache,约占40%的内存空间（主要用于读）：
+
+读请求先到memstore中查数据，查不到就到blockCache中查，再查不到就到磁盘上读，并把读的结果放入blockCache。Blockcache采用lru算法，当blockcache达到上限值时，淘汰掉最近最久未使用的一批数据淘汰掉，每个regionserver只有一个blockcache
+
+（3）其他，约占20%的内存空间。
+
+在注重读响应时间的应用场景下，可以将blockcache设置的大一些，memstore设置的小一些，以加大缓存的命中率。
+
+blockCache分级思想：
+
+（1）首先通过inmemory类型cache,可以由选择地将inmemory的column famlies放到RegionServer内存中，例如meta元数据信息；
+
+（2）通过区分Single和Multi类型的cache,可以防止由于Scan操作带来的频繁颠簸，将最少使用的block加入到淘汰算法中去。
+
+默认配置下。对于整个BlockCache的内存，按照以下百分比分给Single、Multi、InMemory使用：0.25,0.50和0.25
