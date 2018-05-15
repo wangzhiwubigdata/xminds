@@ -12,3 +12,16 @@ Optimizer
 Optimizer的功能就是将来自Analyzer的Analyzed LogicalPlan进行多种rule优化，生成Optimized LogicalPlan
 
 Planner将LogicalPlan转换成PhysicalPlan
+
+
+
+sqlParse，完成sql语句的语法解析功能，目前只提供了一个简单的sql解析器；
+Analyzer，主要完成绑定工作，将不同来源的Unresolved LogicalPlan和数据元数据（如hive metastore、Schema catalog）进行绑定，生成resolved LogicalPlan；
+optimizer对resolved LogicalPlan进行优化，生成optimized LogicalPlan；
+Planner将LogicalPlan转换成PhysicalPlan；
+CostModel，主要根据过去的性能统计数据，选择最佳的物理执行计划
+这些组件的基本实现方法：
+先将sql语句通过解析生成Tree，然后在不同阶段使用不同的Rule应用到Tree上，通过转换完成各个组件的功能。
+Analyzer使用Analysis Rules，配合数据元数据（如hive metastore、Schema catalog），完善Unresolved LogicalPlan的属性而转换成resolved LogicalPlan；
+optimizer使用Optimization Rules，对resolved LogicalPlan进行合并、列裁剪、过滤器下推等优化作业而转换成optimized LogicalPlan；
+Planner使用Planning Strategies，对optimized LogicalPlan
