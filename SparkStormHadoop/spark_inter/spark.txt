@@ -1,0 +1,158 @@
+http://www.cnblogs.com/arachis/p/Spark_Shuffle.html
+
+http://www.jianshu.com/p/60bab35bc01e
+/www.cnblogs.com/arachis/p/Spark_Shuffle.html
+
+
+
+MapReduce中的Shuffle
+在MapReduce框架中，shuffle是连接Map和Reduce之间的桥梁，Map的输出要用到Reduce中必须经过shuffle这个环节，shuffle的性能高低直接影响了整个程序的性能和吞吐量。
+Shuffle是MapReduce框架中的一个特定的phase，介于Map phase和Reduce phase之间，当Map的输出结果要被Reduce使用时，输出结果需要按key哈希，并且分发到每一个Reducer上去，这个过程就是shuffle。由于shuffle涉及到了磁盘的读写和网络的传输，因此shuffle性能的高低直接影响到了整个程序的运行效率。
+下图描述了MapReduce算法的整个流程，其中shuffle phase是介于Map phase和Reduce phase之间：
+
+
+
+在Hadoop, 在mapper端每次当memory buffer中的数据快满的时候, 先将memory中的数据, 按partition进行划分, 然后各自存成小文件, 这样当buffer不断的spill的时候, 就会产生大量的小文件。
+所以Hadoop后面直到reduce之前做的所有的事情其实就是不断的merge, 基于文件的多路并归排序,在map端的将相同partition的merge到一起, 在reduce端, 把从mapper端copy来的数据文件进行merge, 以用于最终的reduce
+多路归并排序, 达到两个目的。
+merge, 把相同key的value都放到一个arraylist里面；sort, 最终的结果是按key排序的。
+这个方案扩展性很好, 面对大数据也没有问题, 当然问题在效率, 毕竟需要多次进行基于文件的多路归并排序,多轮的和磁盘进行数据读写。
+
+
+
+Spark的Shuffle机制
+Spark中的Shuffle是把一组无规则的数据尽量转换成一组具有一定规则的数据。
+Spark计算模型是在分布式的环境下计算的，这就不可能在单进程空间中容纳所有的计算数据来进行计算，这样数据就按照Key进行分区，分配成一块一块的小分区，打散分布在集群的各个进程的内存空间中，并不是所有计算算子都满足于按照一种方式分区进行计算。
+当需要对数据进行排序存储时，就有了重新按照一定的规则对数据重新分区的必要，Shuffle就是包裹在各种需要重分区的算子之下的一个对数据进行重新组合的过程。在逻辑上还可以这样理解：由于重新分区需要知道分区规则，而分区规则按照数据的Key通过映射函数（Hash或者Range等）进行划分，由数据确定出Key的过程就是Map过程，同时Map过程也可以做数据处理，例如，在Join算法中有一个很经典的算法叫Map Side Join，就是确定数据该放到哪个分区的逻辑定义阶段。Shuffle将数据进行收集分配到指定Reduce分区，Reduce阶段根据函数对相应的分区做Reduce所需的函数处理。
+
+Spark中Shuffle的流程
+
+首先每一个Mapper会根据Reducer的数量创建出相应的bucket，bucket的数量是M×R，其中M是Map的个数，R是Reduce的个数。
+其次Mapper产生的结果会根据设置的partition算法填充到每个bucket中去。这里的partition算法是可以自定义的，当然默认的算法是根据key哈希到不同的bucket中去。
+当Reducer启动时，它会根据自己task的id和所依赖的Mapper的id从远端或是本地的block manager中取得相应的bucket作为Reducer的输入进行处理。
+这里的bucket是一个抽象概念，在实现中每个bucket可以对应一个文件，可以对应文件的一部分或是其他等。
+
+
+
+摘要：
+
+   1 shuffle原理
+
+　　1.1 mapreduce的shuffle原理
+
+　　　　1.1.1 map task端操作
+
+　　　　1.1.2 reduce task端操作
+
+　　 1.2 spark现在的SortShuffleManager
+
+    2 Shuffle操作问题解决
+
+　　 2.1 数据倾斜原理
+
+       2.2 数据倾斜问题发现与解决
+
+       2.3 数据倾斜解决方案
+
+   3 spark RDD中的shuffle算子
+
+      3.1 去重
+
+      3.2 聚合
+
+      3.3 排序
+
+      3.4 重分区
+
+      3.5 集合操作和表操作
+
+  4 spark shuffle参数调优
+
+内容：
+
+　1 shuffle原理
+
+       概述：Shuffle描述着数据从map task输出到reduce task输入的这段过程。在分布式情况下，reduce task需要跨节点去拉取其它节点上的map task结果。这一过程将会产生网络资源消耗和内存，磁盘IO的消耗。
+
+　　 1.1 mapreduce的shuffle原理
+
+　　　　1.1.1 map task端操作
+
+　　　　每个map task都有一个内存缓冲区（默认是100MB），存储着map的输出结果，当缓冲区快满的时候需要将缓冲区的数据以一个临时文件的方式存放到磁盘，当整个map task结束后再对磁盘中这个map task产生的所有临时文件做合并，生成最终的正式输出文件，然后等待reduce task来拉数据。
+
+　　　　Spill过程：这个从内存往磁盘写数据的过程被称为Spill，中文可译为溢写。整个缓冲区有个溢写的比例spill.percent（默认是0.8），当达到阀值时map task 可以继续往剩余的memory写，同时溢写线程锁定已用memory，先对key(序列化的字节)做排序,如果client程序设置了Combiner，那么在溢写的过程中就会进行局部聚合。
+
+　　　　Merge过程：每次溢写都会生成一个临时文件，在map task真正完成时会将这些文件归并成一个文件，这个过程叫做Merge。
+
+　　　　1.1.2  reduce task端操作
+
+　　　　当某台TaskTracker上的所有map task执行完成，对应节点的reduce task开始启动，简单地说，此阶段就是不断地拉取(Fetcher)每个map task所在节点的最终结果，然后不断地做merge形成reduce task的输入文件。
+
+　　　　Copy过程：Reduce进程启动一些数据copy线程(Fetcher)通过HTTP协议拉取TaskTracker的map阶段输出文件
+
+　　　　Merge过程：Copy过来的数据会先放入内存缓冲区（基于JVM的heap size设置），如果内存缓冲区不足也会发生map task的spill（sort 默认,combine 可选），多个溢写文件时会发生map task的merge
+
+　　　　下面总结下mapreduce的关键词：
+
+　　　　　　存储相关的有：内存缓冲区，默认大小，溢写阀值
+
+　　　　　　主要过程：溢写（spill），排序，合并（combine），归并（Merge）,Copy或Fetch
+
+　　　　　　相关参数：内存缓冲区默认大小，JVM heap size，spill.percent
+
+　　　　　　详细
+
+　　　　关于排序方法：
+
+　在Map阶段，k-v溢写时，采用的正是快排；而溢出文件的合并使用的则是归并；在Reduce阶段，通过shuffle从Map获取的文件进行合并的时候采用的也是归并；最后阶段则使用了堆排作最后的合并过程。
+
+　　  1.2 spark现在的SortShuffleManager　　
+
+SortShuffleManager运行原理
+SortShuffleManager的运行机制主要分成两种，一种是普通运行机制，另一种是bypass运行机制。当shuffle read task的数量小于等于spark.shuffle.sort.bypassMergeThreshold参数的值时（默认为200），就会启用bypass机制。
+
+普通运行机制
+下图说明了普通的SortShuffleManager的原理。在该模式下，数据会先写入一个内存数据结构中，此时根据不同的shuffle算子，可能选用不同的数据结构。如果是reduceByKey这种聚合类的shuffle算子，那么会选用Map数据结构，一边通过Map进行聚合，一边写入内存；如果是join这种普通的shuffle算子，那么会选用Array数据结构，直接写入内存。接着，每写一条数据进入内存数据结构之后，就会判断一下，是否达到了某个临界阈值。如果达到临界阈值的话，那么就会尝试将内存数据结构中的数据溢写到磁盘，然后清空内存数据结构。
+
+在溢写到磁盘文件之前，会先根据key对内存数据结构中已有的数据进行排序。排序过后，会分批将数据写入磁盘文件。默认的batch数量是10000条，也就是说，排序好的数据，会以每批1万条数据的形式分批写入磁盘文件。写入磁盘文件是通过Java的BufferedOutputStream实现的。BufferedOutputStream是Java的缓冲输出流，首先会将数据缓冲在内存中，当内存缓冲满溢之后再一次写入磁盘文件中，这样可以减少磁盘IO次数，提升性能。
+
+一个task将所有数据写入内存数据结构的过程中，会发生多次磁盘溢写操作，也就会产生多个临时文件。最后会将之前所有的临时磁盘文件都进行合并，这就是merge过程，此时会将之前所有临时磁盘文件中的数据读取出来，然后依次写入最终的磁盘文件之中。此外，由于一个task就只对应一个磁盘文件，也就意味着该task为下游stage的task准备的数据都在这一个文件中，因此还会单独写一份索引文件，其中标识了下游各个task的数据在文件中的start offset与end offset。
+
+SortShuffleManager由于有一个磁盘文件merge的过程，因此大大减少了文件数量。比如第一个stage有50个task，总共有10个Executor，每个Executor执行5个task，而第二个stage有100个task。由于每个task最终只有一个磁盘文件，因此此时每个Executor上只有5个磁盘文件，所有Executor只有50个磁盘文件。
+
+
+ 
+
+
+bypass运行机制
+下图说明了bypass SortShuffleManager的原理。bypass运行机制的触发条件如下：
+
+shuffle map task数量小于spark.shuffle.sort.bypassMergeThreshold参数的值（默认为200）。
+不是排序类的shuffle算子（比如reduceByKey）。
+此时task会为每个下游task都创建一个临时磁盘文件，并将数据按key进行hash然后根据key的hash值，将key写入对应的磁盘文件之中。当然，写入磁盘文件时也是先写入内存缓冲，缓冲写满之后再溢写到磁盘文件的。最后，同样会将所有临时磁盘文件都合并成一个磁盘文件，并创建一个单独的索引文件。
+
+该过程的磁盘写机制其实跟未经优化的HashShuffleManager是一模一样的，因为都要创建数量惊人的磁盘文件，只是在最后会做一个磁盘文件的合并而已。因此少量的最终磁盘文件，也让该机制相对未经优化的HashShuffleManager来说，shuffle read的性能会更好。
+
+而该机制与普通SortShuffleManager运行机制的不同在于：第一，磁盘写机制不同；第二，不会进行排序。也就是说，启用该机制的最大好处在于，shuffle write过程中，不需要进行数据的排序操作，也就节省掉了这部分的性能开销。
+
+ 
+
+    2 Shuffle操作问题解决
+
+　　 2.1 数据倾斜原理
+
+　　  在进行shuffle的时候，必须将各个节点上相同的key拉取到某个节点上的一个task来进行处理，此时如果某个key对应的数据量特别大的话，就会发生数据倾斜
+
+       2.2 数据倾斜问题发现与定位
+
+　　 通过Spark Web UI来查看当前运行的stage各个task分配的数据量，从而进一步确定是不是task分配的数据不均匀导致了数据倾斜。
+
+       知道数据倾斜发生在哪一个stage之后，接着我们就需要根据stage划分原理，推算出来发生倾斜的那个stage对应代码中的哪一部分，这部分代码中肯定会有一个shuffle类算子。通过countByKey查看各个key的分布。
+ 
+       2.3 数据倾斜解决方案
+
+　　　　2.3.1 过滤少数导致倾斜的key
+
+　　　　2.3.2 提高shuffle操作的并行度
+
+　　　　2.3.3 局部聚合和全局聚合
