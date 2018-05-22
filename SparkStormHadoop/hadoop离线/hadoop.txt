@@ -121,4 +121,8 @@ HBase的操作数据的步骤
 Hbase写数据，存数据，读数据的详细过程
 http://www.aboutyun.com/forum.php?mod=viewthread&tid=10886
 
+Client写入 -> 存入MemStore，一直到MemStore满 -> Flush成一个StoreFile，直至增长到一定阈值 -> 出发Compact合并操作 -> 多个StoreFile合并成一个StoreFile，同时进行版本合并和数据删除 -> 当StoreFiles Compact后，逐步形成越来越大的StoreFile -> 单个StoreFile大小超过一定阈值后，触发Split操作，把当前Region Split成2个Region，Region会下线，新Split出的2个孩子Region会被HMaster分配到相应的HRegionServer 上，使得原先1个Region的压力得以分流到2个Region上由此过程可知，HBase只是增加数据，有所得更新和删除操作，都是在Compact阶段做的，所以，用户写操作只需要进入到内存即可立即返回，从而保证I/O高性能。
+
+client->zookeeper->.ROOT->.META-> 用户数据表zookeeper记录了.ROOT的路径信息（root只有一个region），.ROOT里记录了.META的region信息， （.META可能有多个region），.META里面记录了region的信息。
+
 
