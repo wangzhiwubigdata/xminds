@@ -4,6 +4,11 @@ http://www.jianshu.com/p/60bab35bc01e
 /www.cnblogs.com/arachis/p/Spark_Shuffle.html
 
 
+spark shuffle:::::::
+
+https://blog.csdn.net/zhanglh046/article/details/78360762
+
+
 
 MapReduce中的Shuffle
 在MapReduce框架中，shuffle是连接Map和Reduce之间的桥梁，Map的输出要用到Reduce中必须经过shuffle这个环节，shuffle的性能高低直接影响了整个程序的性能和吞吐量。
