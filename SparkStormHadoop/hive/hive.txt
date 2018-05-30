@@ -1,3 +1,9 @@
+
+
+必看！！！！！！！
+https://www.cnblogs.com/yaojingang/p/5446310.html
+！！！！！！！！！！！！！
+
 1 hive表关联查询，如何解决数据倾斜的问题?
 
 倾斜原因：

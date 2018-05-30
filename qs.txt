@@ -1,0 +1,34 @@
+第一题:
+我的思路
+
+1.map阶段对关键词去重，然后逐行读取去重后的文件
+
+2.目录下文件大小10M-10G，对大于1G的文件进行拆分成若干小文件（主要考虑当前内存分配问题避免OOM），
+然后将小文件一个个读进来按照map阶段的keyword进行查找，结果记录在一个双层map中，（keyword,行数，文件名）
+3. reduce阶段把双层的map按照 相同的keywod和文件名 当成一个大key，对value进行排序，输出结果。
+
+
+第二题:
+
+select table_b.user_id
+from (table_a as a inner join table_a as b
+on a.user_id = b.user_id and  date_add(a.month, 1) = b.month and round(b.amt/a.amt,2)>=1.5 as table_b
+inner join table_a as c
+on c.user_id = table_b.user_id   
+and date_add(table_b.month, 1) = c.month and round(c.amt/table_b.amt,2)>=1.5
+
+第三题：
+select b.*
+from 
+(
+select id,updatetime,amt,row_number() over (partition by id order by amt desc) ids
+from 
+   (
+    select id, updatetime, amt, count(1) as count from table_a group by id order by amt desc
+  ) a
+
+) b
+where b.ids between 20 to 30;
+
+
+
