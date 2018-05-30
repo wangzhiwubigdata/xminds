@@ -149,3 +149,29 @@ client->zookeeper->.ROOT->.META-> 用户数据表zookeeper记录了.ROOT的路�
 流水线复制
               当客户端向 HDFS 文件写入数据的时候，一开始是写到本地临时文件中。假设该文件的副 本系数设置为 3 ，当本地临时文件累积到一个数据块的大小时，客户端会从 Namenode 获取一个 Datanode 列表用于存放副本。然后客户端开始向第一个 Datanode 传输数据，第一个 Datanode 一小部分一小部分 (4 KB) 地接收数据，将每一部分写入本地仓库，并同时传输该部分到列表中 第二个 Datanode节点。第二个 Datanode 也是这样，一小部分一小部分地接收数据，写入本地 仓库，并同时传给第三个 Datanode 。最后，第三个 Datanode 接收数据并存储在本地。因此， Datanode 能流水线式地从前一个节点接收数据，并在同时转发给下一个节点，数据以流水线的 方式从前一个 Datanode 复制到下一个
 
+
+NameNode-HA工作原理：
+
+在一个典型的HA集群中，最好有2台独立的机器的来配置NameNode角色，无论在任何时候，集群中只能有一个NameNode作为Active状态，而另一个是Standby状态，Active状态的NameNode负责集群中所有的客户端操作，这么设置的目的，其实HDFS底层的机制是有关系的，同一时刻一个文件，只允许一个写入方占用，如果出现多个，那么文件偏移量便会混乱，从而导致数据格式不可用。
+
+当然状态为Standby的NameNode这时候仅仅扮演一个Slave的角色，以便于在任何时候Active的NameNode挂掉时，能够第一时间，接替它的任务，成为主NameNode，达到一个热备份的效果。
+
+在HA架构里面SecondaryNameNode这个冷备角色已经不存在了，为了保持从NameNode时时的与主NameNode的元数据保持一致，他们之间交互通过一系列守护的轻量级进程JournalNode，当任何修改操作在主NameNode上执行时，它同时也会记录修改log到至少半数以上的JornalNode中，这时状态为Standby的NameNode监测到JournalNode里面的同步log发生变化了会读取JornalNode里面的修改log，然后同步到自己的的目录镜像树里面，当发生故障时，Active的NameNode挂掉后，Standby的NameNode会在它成为Active NameNode前，读取所有的JournalNode里面的修改日志，这样就能高可靠的保证与挂掉的NameNode的目录镜像树一致，然后无缝的接替它的职责，维护来自客户端请求，从而达到一个高可用的目的。 
+
+为了达到快速容错的掌握全局的目的，Standby角色也会接受来自DataNode角色汇报的块信息，前面只是介绍了NameNode容错的工作原理，下面介绍下，当引入Zookeeper之后，为啥可以NameNode-HA可以达到无人值守，自动切换的容错。 
+
+
+在主备切换上Zookeeper可以干的事：
+
+
+（1）失败探测   在每个NameNode启动时，会在Zookeeper上注册一个持久化的节点，当这个NameNode宕机时，它的会话就会终止，Zookeeper发现之后，就会通知备用的NameNode，Hi，老兄，你该上岗了。 
+（2）选举机制， Zookeeper提供了一个简单的独占锁，获取Master的功能，如果那个NameNode发现自己得到这个锁，那就预示着，这个NameNode将被激活为Active状态 
+
+
+当然，实际工作中Hadoop提供了ZKFailoverController角色，在每个NameNode的节点上，简称zkfc，它的主要职责如下： 
+
+
+（1）健康监测，zkfc会周期性的向它监控的NameNode发送健康探测命令，从而来确定某个NameNode是否处于健康状态，如果机器宕机，心跳失败，那么zkfc就会标记它处于一个不健康的状态 
+（2）会话管理， 如果NameNode是健康的，zkfc就会在zookeeper中保持一个打开的会话，如果NameNode同时还是Active状态的，那么zkfc还会在Zookeeper中占有一个类型为短暂类型的znode，当这个NameNode挂掉时， 
+这个znode将会被删除，然后备用的NameNode，将会得到这把锁，升级为主NameNode，同时标记状态为Active，当宕机的NameNode，重新启动时，它会再次注册zookeper，发现已经有znode锁了，便会自动变为Standby状态，如此往复循环，保证高可靠，需要注意，目前仅仅支持最多配置2个NameNode。 
+（3）master选举，如上所述，通过在zookeeper中维持一个短暂类型的znode，来实现抢占式的锁机制，从而判断那个NameNode为Active状态。
