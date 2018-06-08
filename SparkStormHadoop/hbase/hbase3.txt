@@ -1,0 +1,170 @@
+
+以下大部分题目是从网上搜索得来，答案是笔者给的，若有错误，烦请指出，谢谢。
+
+1 每天百亿数据存入HBase，如何保证数据的存储正确和在规定的时间里全部录入完毕，不残留数据
+答：看到这个题目的时候我们要思考的是它在考查什么知识点？
+我们来看看要求：
+1）百亿数据：证明数据量非常大
+2）存入HBase：证明是跟HBase的写入数据有关
+3）保证数据的正确：要设计正确的数据结构保证正确性
+4）在规定时间内完成：对存入速度是有要求的
+
+那么针对以上的四个问题我们来一一分析
+1）数据量百亿条，什么概念呢？假设一整天60x60x24 = 86400秒都在写入数据，那么每秒的写入条数高达100万条，HBase当然是支持不了每秒百万条数据的，所以这百亿条数据可能不是通过实时地写入，而是批量地导入。批量导入推荐使用BulkLoad方式（推荐阅读：Spark之读写HBase），性能是普通写入方式几倍以上
+2）存入HBase：普通写入是用JavaAPI put来实现，批量导入推荐使用BulkLoad
+3）保证数据的正确：这里需要考虑RowKey的设计、预建分区和列族设计等问题
+4）在规定时间内完成也就是存入速度不能过慢，并且当然是越快越好，使用BulkLoad
+
+2 HBase 如何给WEB前端提供接口来访问？
+答：使用JavaAPI来编写WEB应用；使用HBase提供的RESTful接口
+
+3 HBase优化方法
+答：优化手段主要有以下四个方面
+
+1）减少调整
+减少调整这个如何理解呢？HBase中有几个内容会动态调整，如region（分区）、HFile，所以通过一些方法来减少这些会带来I/O开销的调整
+
+Region
+如果没有预建分区的话，那么随着region中条数的增加，region会进行分裂，这将增加I/O开销，所以解决方法就是根据你的RowKey设计来进行预建分区，减少region的动态分裂
+HFile
+HFile是数据底层存储文件，在每个memstore进行刷新时会生成一个HFile，当HFile增加到一定程度时，会将属于一个region的HFile进行合并，这个步骤会带来开销但不可避免，但是合并后HFile大小如果大于设定的值，那么HFile会重新分裂。为了减少这样的无谓的I/O开销，建议估计项目数据量大小，给HFile设定一个合适的值
+2）减少启停
+数据库事务机制就是为了更好地实现批量写入，较少数据库的开启关闭带来的开销，那么HBase中也存在频繁开启关闭带来的问题。
+
+关闭Compaction，在闲时进行手动Compaction
+因为HBase中存在Minor Compaction和Major Compaction，也就是对HFile进行合并，所谓合并就是I/O读写，大量的HFile进行肯定会带来I/O开销，甚至是I/O风暴，所以为了避免这种不受控制的意外发生，建议关闭自动Compaction，在闲时进行compaction
+批量数据写入时采用BulkLoad
+如果通过HBase-Shell或者JavaAPI的put来实现大量数据的写入，那么性能差是肯定并且还可能带来一些意想不到的问题，所以当需要写入大量离线数据时建议使用BulkLoad
+3）减少数据量
+虽然我们是在进行大数据开发，但是如果可以通过某些方式在保证数据准确性同时减少数据量，何乐而不为呢？
+
+开启过滤，提高查询速度
+开启BloomFilter，BloomFilter是列族级别的过滤，在生成一个StoreFile同时会生成一个MetaBlock，用于查询时过滤数据
+使用压缩：一般推荐使用Snappy和LZO压缩
+4）合理设计
+在一张HBase表格中RowKey和ColumnFamily的设计是非常重要，好的设计能够提高性能和保证数据的准确性
+
+RowKey设计：应该具备以下几个属性
+
+散列性：散列性能够保证相同相似的rowkey聚合，相异的rowkey分散，有利于查询
+简短性：rowkey作为key的一部分存储在HFile中，如果为了可读性将rowKey设计得过长，那么将会增加存储压力
+
+唯一性：rowKey必须具备明显的区别性
+
+业务性：举些例子
+
+假如我的查询条件比较多，而且不是针对列的条件，那么rowKey的设计就应该支持多条件查询
+如果我的查询要求是最近插入的数据优先，那么rowKey则可以采用叫上Long.Max-时间戳的方式，这样rowKey就是递减排列
+列族的设计
+列族的设计需要看应用场景
+
+多列族设计的优劣
+优势：HBase中数据时按列进行存储的，那么查询某一列族的某一列时就不需要全盘扫描，只需要扫描某一列族，减少了读I/O；其实多列族设计对减少的作用不是很明显，适用于读多写少的场景
+劣势：降低了写的I/O性能。原因如下：数据写到store以后是先缓存在memstore中，同一个region中存在多个列族则存在多个store，每个store都一个memstore，当其实memstore进行flush时，属于同一个region
+的store中的memstore都会进行flush，增加I/O开销
+4 HBase中RowFilter和BloomFilter原理
+答：
+
+1）RowFilter原理简析
+RowFilter顾名思义就是对rowkey进行过滤，那么rowkey的过滤无非就是相等（EQUAL）、大于(GREATER)、小于(LESS)，大于等于(GREATER_OR_EQUAL)，小于等于(LESS_OR_EQUAL)和不等于(NOT_EQUAL)几种过滤方式。Hbase中的RowFilter采用比较符结合比较器的方式来进行过滤。
+
+比较器的类型如下：
+
+BinaryComparator
+BinaryPrefixComparator
+NullComparator
+BitComparator
+RegexStringComparator
+SubStringComparator
+例子：
+
+Filter rowFilter = new RowFilter(CompareFilter.CompareOp.EQUAL,
+new BinaryComparator(Bytes.toBytes(rowKeyValue)));
+Scan scan = new Scan();
+scan.setFilter(rowFilter)
+...
+在上面例子中，比较符为EQUAL，比较器为BinaryComparator
+
+2）BloomFilter原理简析
+主要功能：提供随机读的性能
+存储开销：BloomFilter是列族级别的配置，一旦表格中开启BloomFilter，那么在生成StoreFile时同时会生成一份包含BloomFilter结构的文件MetaBlock，所以会增加一定的存储开销和内存开销
+粒度控制：ROW和ROWCOL
+BloomFilter的原理
+简单说一下BloomFilter原理
+内部是一个bit数组，初始值均为0
+插入元素时对元素进行hash并且映射到数组中的某一个index，将其置为1，再进行多次不同的hash算法，将映射到的index置为1，同一个index只需要置1次。
+查询时使用跟插入时相同的hash算法，如果在对应的index的值都为1，那么就可以认为该元素可能存在，注意，只是可能存在
+所以BlomFilter只能保证过滤掉不包含的元素，而不能保证误判包含
+设置：在建表时对某一列设置BloomFilter即可
+5 HBase的导入导出方式
+答：
+1）导入：bin/hbase org.apache.hadoop.hbase.mapreduce.Driver import 表名 路径
+
+路径：来源
+
+本地路径 file:///path
+HDFS hdfs://cluster1/path
+2）导出：bin/hbase org.apache.hadoop.hbase.mapreduce.Driver export 表名 路径
+
+路径：目的地
+
+本地路径 file:///path
+HDFS hdfs://cluster1/path
+6 Region如何预建分区
+预建分区的方法很简单，有以下两种
+hbase shell
+create 't1', 'f1',SPLITS=>['10','20','30']
+create 't1','f1',SPLITS_FILE =>'splits.txt'
+Java API
+创建一个byte[][] splitKeys = {{1,2,3},{4,5,6}}
+admin.createTable(tableDesc,splitKeys)
+预建分区的难点在于key如何设计，分多少个和如何分的问题，那么下面我们就对这三个问题一一分析：
+1）如何设计Key，我们设计Key的原则就是要让Key足够散列，但同时又要保持Key的长度适中，这里给出一个方法，样本取自Spark读写HBase中的数据
+
+01055HAXMTXG10100001@KEY_VOLTAGE_TEC_PWR@1.60@1.62@1.75@1.55
+
+我想要的rowKey是：01055HAXMTXG10100001KEY_VOLTAGE_TEC_PWR
+
+但是很明显这样肯定是不会足够散列的，那么我们可以对上面那个Key进行MD5，然后取前面三个字符（为了更加散列，可以取1,3,5或者其他组合）再加上原来的Key
+
+DigestUtils.md5Hex(x(0)+x(1)).substring(0,3)+x(0)+x(1)
+这样的话我们就可以得到足够散列的数据，并且MD5取得的是十六进制字符串，那么Key的范围就是（0,0,0）至（f，f，f）
+
+2）分多少个：这个需要我们就要根据我们集群规模来进行安排，假设我们有5regionServer，每个regionServer有20个region，那么总共就是100个region，最后的工作就是将000-fff分成100份。
+
+3）如何分：就是生成一个byte[][]，用于创建表格，这个我将会些一篇另外的博文来介绍，敬请期待
+
+7 HRegionServer宕机如何处理？
+1）ZooKeeper会监控HRegionServer的上下线情况，当ZK发现某个HRegionServer宕机之后会通知HMaster进行失效备援；
+2）该HRegionServer会停止对外提供服务，就是它所负责的region暂时停止对外提供服务
+3）HMaster会将该HRegionServer所负责的region转移到其他HRegionServer上，并且会对HRegionServer上存在memstore中还未持久化到磁盘中的数据进行恢复
+4）这个恢复的工作是由WAL重播来完成，这个过程如下：
+
+wal实际上就是一个文件，存在/hbase/WAL/对应RegionServer路径下
+宕机发生时，读取该RegionServer所对应的路径下的wal文件，然后根据不同的region切分成不同的临时文件recover.edits
+当region被分配到新的RegionServer中，RegionServer读取region时会进行是否存在recover.edits，如果有则进行恢复
+8 HBase简单读写流程
+读：
+找到要读取数据的region所在的RegionServer，然后按照以下顺序进行读取：先去BlockCache读取，若BlockCache没有，则到Memstore读取，若MemStore中没有，则到HFile中读取。
+
+写：
+找到要写入数据的region所在的RegionServer，然后将数据先写到WAL中，然后再将数据写到MemStore等待刷新，回复客户端写入完成。
+
+9 HBase和Hive的对比
+HBase	Hive
+类型	列式数据库	数据仓库
+内部机制	数据库引擎	MapReduce
+增删改查	都支持	只支持导入和查询
+Schema	只需要预先定义列族，不需要具体到列列可以动态修改	需要预先定义表格
+应用场景	实时	离线处理
+特点	以K-V形式存储	类SQL
+10 HBase首次读写流程
+Client从ZooKeeper中读取hbase:meta表
+Client从hbase:meta中获取想要操作的region的位置信息，并且将hbase:meta缓存在Client端，用于后续的操作
+当一个RegionServer宕机而执行重定位之后，Client需要重新获取新的hase:meta信息进行缓存
+11 HBase搭建过程中需要注意什么？
+hbase-env.sh的配置
+是否使用外部ZooKeeper，这个一般使用Hadoop集群的ZooKeeper集群即可。
+HBASE_MANAGES_ZK=false
+hbase-site.sh的配置
+hbase.zookeeper.quorum="host1:2181,host2:2181"
