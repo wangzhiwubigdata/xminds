@@ -1,0 +1,107 @@
+
+常用MapReduce作业配置参数
+可在客户端的mapred-site.xml中配置，作为MapReduce作业的缺省配置参数。也可以在作业提交时，个性化指定这些参数。
+ 
+参数名称	缺省值	说明
+mapreduce.job.name	 	作业名称
+mapreduce.job.priority	NORMAL	作业优先级
+yarn.app.mapreduce.am.resource.mb	1536	MR ApplicationMaster占用的内存量
+yarn.app.mapreduce.am.resource.cpu-vcores	1	MR ApplicationMaster占用的虚拟CPU个数
+mapreduce.am.max-attempts	2	MR ApplicationMaster最大失败尝试次数
+mapreduce.map.memory.mb	1024	每个Map Task需要的内存量
+mapreduce.map.cpu.vcores	1	每个Map Task需要的虚拟CPU个数
+mapreduce.map.maxattempts	4	Map Task最大失败尝试次数
+mapreduce.reduce.memory.mb	1024	每个Reduce Task需要的内存量
+mapreduce.reduce.cpu.vcores	1	每个Reduce Task需要的虚拟CPU个数
+mapreduce.reduce.maxattempts	4	Reduce Task最大失败尝试次数
+mapreduce.map.speculative	false	是否对Map Task启用推测执行机制
+mapreduce.reduce.speculative	false	是否对Reduce Task启用推测执行机制
+mapreduce.job.queuename	default	作业提交到的队列
+mapreduce.task.io.sort.mb	100	任务内部排序缓冲区大小
+mapreduce.map.sort.spill.percent	0.8	Map阶段溢写文件的阈值（排序缓冲区大小的百分比）
+mapreduce.reduce.shuffle.parallelcopies	5	Reduce Task启动的并发拷贝数据的线程数目
+例： set mapreduce.map.cpu.vcores = 4
+常见问题及参数设置
+ 
+1、提交作业java.lang.OutOfMemoryError: Java heap space 或者长时间提交不了集群job
+    os.environ["HADOOP_CLIENT_OPTS"]="-Xmx16g"
+2、java.io.IOException:Split metadata size exceeded 10000000
+    set mapreduce.job.split.metainfo.maxsize=-1
+3、map数超过50000的job设置：
+   set mapreduce.job.running.map.limit=50000;
+4、beyond virtual memory limits
+   yarn.app.mapreduce.am.command-opts=-Xmx8192m 
+   yarn.app.mapreduce.am.resource.mb=9216 
+5、 执行出现 java.io.IOException: Split metadata size exceeded 10000000错误时，设置如下参数：
+  set mapreduce.jobtracker.split.metainfo.maxsize = －1
+其他常用参数设置
+ 
+java 堆内存溢出：
+// MAP YARN 申请内存
+set mapreduce.map.memory.mb=4096;
+// MAP JVM 内存
+set mapreduce.map.java.opts=-Xmx3572M;
+// REDUCE YARN 申请内存
+set mapreduce.reduce.memory.mb=5120;
+// REDUCE JVM 内存
+set mapreduce.reduce.java.opts=-Xmx4096M;
+// AM YARN 申请内存
+set yarn.app.mapreduce.am.resource.mb=2000;
+// AM JVM 内存
+set yarn.app.mapreduce.am.command-opts=-Xmx1524m;
+//动态分区属性,全局可以创建的最大文件个数
+set hive.exec.max.created.files=100000;
+一般 JVM 参数可以是  Yarn 申请内存的 80%, 如果 都比较大，可以酌情
+// 开启任务并行执行 
+set hive.exec.parallel=true;
+
+// 同一个sql允许并行任务的最大线程数 
+set hive.exec.parallel.thread.number=8;
+
+//存储临时Hive统计信息的方式
+set hive.stats.dbclass=counter;
+HiveSQL控制map数和reduce数
+ 
+1、若读取小文件较多，则设置在map端进行小文件合并参数
+set hive.input.format = org.apache.hadoop.hive.ql.io.CombineHiveInputFormat;
+set hive.hadoop.supports.splittable.combineinputformat = true;
+set mapreduce.input.fileinputformat.split.maxsize = 256000000;
+set mapreduce.input.fileinputformat.split.minsize.per.node=256000000;
+set mapreduce.input.fileinputformat.split.minsize.per.rack=256000000;
+
+2、配置MR任务结束后进行文件合并
+set hive.merge.mapfiles = true;
+set hive.merge.mapredfiles = true;
+set hive.merge.size.per.task = 256000000;
+set hive.merge.smallfiles.avgsize=256000000;
+动态分区无Reduce产生小文件处理
+ 
+在设置动态分区后，产生的文件数会取决于map数和分区数的大小，假设动态分区初始有N个map数，同时生成M个分区，则中间会生成N*M个文件，通常这种情况就是让大部分数据尽量输出到一个reduce中进行处理，但是有些HiveSql不会产生reduce，也就是说文件最后没有进行合并处理，这种情况下可以用distribute by rand()的方式保证数据进行一次reduce操作，实现文件的合并。
+两种处理方式参数设置如下：
+1、 设置reduce个数
+set mapred.reduce.tasks=50;
+insert into table xxx
+select
+  *
+from
+ xxx
+distribute by rand();
+备注：set设置的参数是生成的文件个数，distribute by rand()保证数据随机分配到50个文件中。
+ 
+2、设置每个reducer处理的数据
+set hive.exec.reducers.bytes.per.reducer=5120000000;
+insert into table xxx
+select
+  *
+from
+ xxx
+distribute by rand();
+备注：set设置的参数是生成的文件大小，distribute by rand()保证数据的平均大小是512Mb。
+ 
+Reduce数设置
+在设置reduce数时，一定要遵循以下公式：
+reduce数 * 分区数 < 6W
+reduce数=60000 / 分区数
+//设置reduce数
+set hive.exec.reducers.max = reduce数
+ 
