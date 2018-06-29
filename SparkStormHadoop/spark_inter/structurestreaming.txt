@@ -1,0 +1,12 @@
+Structured Streaming 的做法是：
+
+引入全局范围、高可用的 StateStore
+转全量为增量，即在每次执行时：
+先从 StateStore 里 restore 出上次执行后的状态
+然后加入本执行的新数据，再进行计算
+如果有状态改变，将把改变的状态重新 save 到 StateStore 里
+为了在 Dataset/DataFrame 框架里完成对 StateStore 的 restore 和 save 操作，引入两个新的物理计划节点 —— StateStoreRestoreExec 和 StateStoreSaveExec
+所以 Structured Streaming 在编程模型上暴露给用户的是，每次持续查询看做面对全量数据，但在具体实现上转换为增量的持续查询。
+
+Spark 1.x 的 RDD 更多意义上是一个一维、只有行概念的数据集，比如 RDD[Person]，那么一行就是一个 Person，存在内存里也是把 Person 作为一个整体（序列化前的 java object，或序列化后的 bytes）。
+Spark 2.x 里，一个 Person 的 Dataset 或 DataFrame，是二维行+列的数据集，比如一行一个 Person，有 name:String, age:Int, height:Double 三列；在内存里的物理结构，也会显式区分列边界。
