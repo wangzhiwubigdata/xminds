@@ -1,0 +1,694 @@
+网络基础
+
+ 
+
+对象的内存布局
+
+对象头（header）、实例数据（Instance Data）、对齐填充
+
+java对象头里的Mark Word里默认存储对象的HashCode、分代年龄和锁标记位（包括锁标志位和是否是偏向锁）
+
+锁一共4种状态，级别从低到高分依次是：无锁状态，偏向锁状态，轻量级锁状态和重量级锁状态
+
+ 
+
+jvm垃圾收集
+
+1、内存划分：栈内存，堆内存，方法区
+
+2、堆内存划分
+
+新生代，老年代和永久代
+
+新生代又可划分为Eden区，Survivor 1区和Survivor 2区。新创建的对象会分配在Eden区,在经历一次Minor GC后会被移到Survivor 1区，再经历一次Minor GC后会被移到Survivor 2区，直到升至老年代,需要注意的是，一些大对象(长字符串或数组)可能会直接存放到老年代
+
+大多数情况下，对象在新生代Eden区中分配，当Eden没有足够空间进行分配时，虚拟机将发起一次Minor GC(发生在新生代的垃圾收集动作)
+
+新的对象实例会优先分配在新生代，在经历几次Minor GC后(默认15次)，还存活的会被移至老年代
+
+Full GC:指发生在老年代的GC
+
+Minor GC发生在新生代，当Eden区没有足够空间时，会发起一次Minor GC，将Eden区中的存活对象移至Survivor区。Major GC发生在老年代，当升到老年代的对象大于老年代剩余空间时会发生Major GC
+
+表的优化
+
+1、定长与变长分离
+
+定长：int,char,time
+
+变长：varchar,text,blob
+
+2、常用字段和不常用字段分离
+
+3、一对多，需要关联统计的字段上，添加冗余字段（论坛版块列表，回复数）
+
+4、列选择原则：
+
+1）字段类型优先级：整型>date,time>char,enum>varchar>blob.text
+
+2）够用就行，不用慷慨
+
+3）尽量避免使用NULL()：在磁盘上占用更大的空间，NULL()不利于索引，要用特殊的字符来表示
+
+5、MYSQL索引类型：BTree索引、Hash索引
+
+hash索引是在memory表里的，即在内存中存在
+
+hash索引的弊端：
+
+1）无法对范围查询进行优化
+
+2）无法利用前缀索引
+
+3）无法对排序进行优化
+
+4）必须回行，即通过索引拿到表的位置，必须回到表中取数据
+
+6、BTree索引常见误区
+
+1）在where条件常用的列上都加上索引——独立索引只能用上一个
+
+2）在多列上建立联合索引后，查询哪个列，索引都能发挥作用——必须依照索引的顺序，且满足左前缀要求
+
+索引可以提高查询速度，排序速度和分组统计的速度
+
+7、创建联合索引
+
+复制代码
+create table t4 (
+c1 tinyint(1) not null default 0,
+c2 tinyint(1) not null default 0,
+c3 tinyint(1) not null default 0,
+c4 tinyint(1) not null default 0,
+c5 tinyint(1) not null default 0,
+index c1234(c1,c2,c3,c4)
+);
+复制代码
+8、分析索引的使用情况：explain
+
+Innodb和myisam都是使用的BTree索引
+
+但是myisam使用的是非聚簇索引——索引表和数据表分离，其索引指向某行在磁盘上的位置，不同索引树之间并无关联
+
+innodb使用的是聚簇索引，数据和索引一块存放，不用回行，其索引，指向对主键的引用，非主键索引树指向主键索引
+
+叶子比较重，且主键无规律，容易出现叶分裂
+
+索引覆盖，优化的目的在于尽量少从磁盘上拿数据
+性能分析工具：show profiles—— set profiling=1
+
+9、理想的索引：
+
+1）查询频繁
+
+2）区分度高
+
+3）长度小
+
+4）尽量能覆盖常用查询字段
+
+ index(cat_id,price)，index(cat_id,brand_id,shop_price)；
+
+10、索引与排序
+
+排序可能发生两种情况：
+
+1）对于索引覆盖，直接在索引上查询时，就是有顺序的，using index
+
+2）如果没有索引，先取出临时数据，形成临时表做firesort（文件排序，可能在磁盘上，也可能在内存中）
+
+我们的争取目标——取出来的数据本身就是有序的，利用索引来排序
+
+对于myisam而言，对所有数据排序时并不是每取一次索引然后去磁盘上取相应数据，而是将所有数据都取出来进行filesort
+
+独立的索引在每次查询中只能使用一个，应该尽量避免查询中出现filesort
+
+where 后面的字段和 order by后面的字段不一致的时候，也会出新filesort现象，因为独立索引只能使用一个，查询时用到了一个索引，在排序时就不能使用排序字段的索引了
+
+11、索引相关的操作语句
+
+冗余索引较为常见，常用的为两个相同字段按先后顺序分别建立不同的索引
+
+12、表修复——索引碎片及维护
+
+方式一：nop操作，不对数据产生实际影响——alter table xxx engine InnoDB
+
+方式二：optimize table  name
+
+注意: innodb来说,
+
+1: 主键索引 既存储索引值,又在叶子中存储行的数据
+
+2: 如果没有主键, 则会Unique key做主键
+
+3: 如果没有unique,则系统生成一个内部的rowid做主键.
+
+4: 像innodb中,主键的索引结构中,既存储了主键值,又存储了行数据,这种结构称为”聚簇索引”
+
+13、SQL语句优化
+
+sql语句的执行时间花在哪了？
+
+查找——沿着索引查找，慢者可能全表扫描
+
+取出——查到行后，把数据取出来
+
+如何查询快？
+
+1）查询——联合索引的顺序，区分度，长度
+
+2）取的快，索引覆盖
+
+3）传输更少，更少的行和列
+
+尽量走索引进行查询
+
+14、explain 解释一个查询语句的执行计划
+
+字段详解：
+
+       id:查询的序号，表明select语句
+
+　　select_type:
+
+　　　　　　simple：不含子查询
+
+　　　　　　primary：含子查询
+
+　　　　　　　　dependent subquery：非from子查询
+
+　　　　　　　　derived：from子查询
+
+　　　　　　　　union 和 union result
+
+　　table:查询的表名
+
+　　　　实际的表名，表的别名，derived（from类型的子查询），null （union）
+
+　　type:索引所发挥的作用
+
+　　　　all:做全表扫描，where后面查询条件列中没有索引。利用索引来排序，但是取出来是所有的节点，所以也会出现all的情况
+
+　　　　Index:比all性能稍微好点，all扫描所有的数据行，相当于data_all，indux扫描所有的索引节点，相当于index_all
+
+　　　　range:索引范围扫描
+
+　　　　ref：精准查询，可以直接引用到某些行数据
+
+　　　　eq_ref:
+
+　　　　const,system,null:查询优化到常量级别，甚至不需要查询时间，一般按主键查询时，能出现这种情况
+
+　　possible_keys:可能用到的键
+
+　　key：真正用到的键
+
+　　key_len：表的长度
+
+　　ref：两表联查时候的引用关系
+
+　　rows:本次查询返回的行数
+
+　　extra:额外的信息
+
+　　　　index：用到了索引覆盖，效率非常高
+
+　　　　using where：光靠索引定位不了，还得where进行判断
+
+　　　　using temporary：是指用上了临时表，order by与group by不同列时，或group by，order by别的表的列
+
+　　　　using filesort：文件排序（文件可能在磁盘，也可能在内存）
+
+　　
+
+　　如果取出的列含有text，或者更大的如mediumtext等，filesort将会发生在磁盘上
+
+　　show status like '%_table%'：查看磁盘使用情况
+
+15、In型子查询的误区：
+
+mysql的查询优化器，针对In型做了优化，被改成了exists子查询的执行效果，当goods表越大时，查询速度越慢
+
+改进：用连接查询代替子查询
+
+ explain select goods_id,g.cat_id,g.goods_name from  goods as g
+
+ inner join (select cat_id from ecs_category where parent_id=6) as t
+
+ using(cat_id) \G
+
+16、from型子查询
+
+注意::内层from语句查到的临时表, 是没有索引的.
+
+所以: from的返回内容要尽量少.
+
+17、count（*）优化
+
+18、group by、order by
+
+19、union总是要产生临时表
+
+尽量使用union all，不去重，不排序
+
+20、limit 及翻页优化
+
+limit offset,N,  当offset非常大时, 效率极低,
+
+原因是mysql并不是跳过offset行,然后单取N行,
+
+而是取offset+N行,返回放弃前offset行,返回N行.
+
+效率较低,当offset越大时,效率越低
+
+show profiles;
+
+set profiling=1;
+
+show profile for query 5
+
+尽量沿着索引爬行
+
+select id,name from lx_com where id>5000000 limit 10;
+
+非要物理删除,还要用offset精确查询,还不限制用户分页,怎么办?
+
+select id,name from lx_com inner join (select id from lx_com limit 5000000,10) as tmp using(id);
+
+数据库底层原理，调优
+
+ 
+
+数据表设计原则
+
+1、从空间上考虑用varchar，从效率上考虑，用char
+
+varchar类型的实际长度，是它的值的实际长度+1，+1的字节用于保存实际用了多大长度
+
+2、存储过程
+
+可移植性较差
+
+定义存储过程：
+
+delimiter %
+
+create procedure 过程名（参数1，参数2）
+
+begin
+
+　　sql语句
+
+end
+
+调用方式：
+
+call 过程名(参数1，参数2)
+
+存储过程参数传递；
+
+IN参数
+
+in传入参数，把参数传递到过程内部
+
+特点：读取外部变量值，且有效范围仅限存储过程内部
+
+out：传出参数
+
+inout：传入传出参数
+
+into：赋值
+
+mysql中的变量
+
+1)局部变量。
+
+局部变量一般用在sql语句块中，比如存储过程的begin/end。其作用域仅限于该语句块，在该语句块执行完毕后，局部变量就消失了。
+
+局部变量一般用declare来声明，可以使用default来说明默认值。
+
+drop procedure if exists add;
+
+create procedure add( in a int, in b int)
+
+begin
+
+    declare c int default 0;
+
+    set c = a + b;
+
+    select c as c;
+
+end;
+
+2)用户变量
+
+用户变量的作用域要比局部变量要广。用户变量可以作用于当前整个连接，但是当当前连接断开后，其所定义的用户变量都会消失。
+
+用户变量使用如下(这里我们无须使用declare关键字进行定义，可以直接这样使用):
+
+select @变量名
+
+对用户变量赋值有两种方式，一种是直接用"="号，另一种是用":="号。其区别在于使用set命令对用户变量进行赋值时，两种方式都可以使用；当使用select语句对用户变量进行赋值时，只能使用":="方式，因为在select语句中，"="号被看作是比较操作符。
+
+3)会话变量
+
+4)全局变量
+
+触发器
+
+与数据表有关，当表出现变化的时候（增、删、改），自动执行其他的特定的操作
+
+触发器的格式
+
+语法：create trigger 触发器名称 触发的时间 触发的动作
+
+on 表名 for each row 触发器状态
+
+触发器状态：随便起名字
+
+触发的时机：before/after 在执行动作之前还是之后
+
+触发的动作：
+
+指的激发触发程序的语句类型：insert,update,delete
+
+触发器创建语法四要素：
+
+1）监视地点（table）
+
+2）监视事件（insert/update/delete）
+
+3）触发时间（after/before）
+
+4）触发事件（insert/update/delete）
+
+查看触发器：show triggers \G
+
+查看触发器创建过程：show create trigger triggername \G
+
+ 事务：（只有InnoDB引擎支持）
+
+开启事务：START TRANSACTION
+
+提交当前事务：COMMIT
+
+关闭自动提交：set autocommit=0;
+
+回滚：rollback
+
+MySQL相关的配置文件：
+
+主配置文件：/etc/my.cnf
+
+进程通讯文件：/var/lib/mysql/mysql.sock
+
+日志文件：/var/log/mysqld.log
+
+进程ID文件：/var/run/mysqld/mysqld.pid
+
+二进制文件：在my.cnf中增加
+
+log-bin=mysql-bin.log
+
+慢查询日志文件：在my.cnf中增加
+
+log-slow-queries
+
+存储引擎层：存储和提取数据以及事务处理
+
+ 
+
+MyISAM的特性：
+
+1）不支持事务，宕机时会破坏表
+
+2）使用较小的内存和磁盘空间
+
+3）基于表的锁，表级锁（加锁与并发）表级锁定影响性能
+
+4）只缓存index，数据由os缓存
+
+5）不支持外键约束，但是支持全文索引。
+
+MyISAM调优精要：
+
+1、设置合适的索引（缓存机制）
+
+2、调整读写优先级，根据实际需求确保重要操作更优先执行
+
+3、启用延迟插入，改善大批量写入性能
+
+4、尽量顺序操作，让insert数据都写入到尾部，减少阻塞
+
+5、降低并发数，减少对数据库的访问，使用消息队列
+
+6、对于相对静态的数据库数据，充分利用Query Cache或者memcached缓存服务可以极大提高访问速率
+
+7、
+
+InnoDB存储引擎的特性
+
+1）支持事务四个级别ACID
+
+2）支持行锁（行级锁定）
+
+3）聚簇索引
+
+4）支持外键
+
+5）支持崩溃数据自修复
+
+6）具有高效的缓存特性，能缓存索引，也能缓存数据。
+
+默认使用InnoDB引擎配置
+
+default-storage-enigine=innodb
+
+类加载器及其加载过程
+
+ 
+
+Hibernate 机制
+
+MYSQL
+
+ORACLE
+
+多线程技术，各种锁机制
+
+1、moniterenter和moniterexit 指令对应于synchronized，更深一步是lock和unlock
+
+2、执行moniterenter指令时，首先要尝试获取对象锁。如果这个对象没被锁定，或者当前已经拥有了那个对象的锁，把锁的计数器加1，相应的，在执行moniterexit指令时会将计数器减1，当计数器为0时，锁就被释放。
+
+3、和synchronized相比，ReentrantLock增加了一些高级功能，主要有等待可中断，可实现公平锁，以及锁可以绑定多个条件。
+
+4、自旋锁：为了让线程等待，只需让线程执行一个忙循环（自旋），但并不放弃处理器的执行时间，这项技术就是自旋锁
+
+自旋锁可以在时间上和自旋次数上进行控制，自适应自旋锁
+
+5、
+
+大数据相关组件及其原理
+
+设计模式
+
+zookeeper原理
+
+数据库和缓存保持数据的一致性
+
+Concurrent包
+
+虚拟机和调优
+
+缓存一致性问题（如何解决数据库和redis缓存的双写操作）
+
+一致性Hash算法
+
+内存高占用率分析
+
+java内存模型
+
+1、Java内存模型规定了所有变量都存储在主内存中，每条线程还有自己的工作内存，线程的工作内存中保存了被该线程使用到的变量的主内存副本拷贝，线程对变量的所有操作都必须在工作内存中进行，而不能直接读写准内存中的变量。
+
+2、内存间交互操作
+
+lock、unlock
+
+read、load：两者不能单独出现
+
+use、assign
+
+store、write：两者不能单独出现
+
+3.volatile不保证原子性
+
+特性1：保证此变量对所有线程的可见性
+
+特性2：禁止指令重排序优化
+
+Executor
+
+1.Executor框架的结构
+
+2.ThreadPoolExecutor
+
+ThreadPoolExecutor通常使用工厂类Executors来创建，可以创建的三种类型
+
+SingleThreadExecutor:只有一个线程，适用于需要保证顺序地执行各个任务，并且在任意时间点，不会有多个线程是活动的应用场景
+
+FixedThreadPool:用于需要限制当前线程数量的应用场景，它适用于负载比较重的服务器
+
+CachedThreadPool：是大小无界的线程池，适用于执行很多的短期异步任务的小程序，或者是负载较轻的服务器
+
+ 
+
+HashMap和ConcurrentHashMap
+
+在并发编程中使用HashMap可能导致程序死循环，而使用线程安全的HashTable效率又非常低下
+
+在多线程中使用HashMap进行put操作会引起死循环，导致CPU利用率接近100%，因为多线程会导致HashMap的Entry链表形成环形数据结构，一旦形成环形数据结构，Entry的next节点永远不为空。
+
+ConcurrentHashMap的锁分段技术可有效提升并发访问率
+
+chm由Segment数组结构和HashEntry数组结构组成，Segment是一种可重入锁(ReentrantLock)。
+
+Segment的结构和HashMap类似，是一种数组和链表结构，一个Segment里包含一个HashEntry数组，每个HashEntry是一个链表结构的元素。
+
+定位Segment：
+
+在插入和获取元素的时候，必须先通过散列算法定位到Segment，之所以进行再散列，目的是减少散列冲突，使元素能够均匀的分布在不同的Segment上，从而提高容器的存取效率，通过这种再散列能让数字的每一位都参加到散列运算当中，从而减少散列冲突。
+
+get操作：get操作不需要加锁，因为get方法中要使用的共享变量都定义成立volatile类型，因此可以在多线程中保持可见性，可以被多线程同时读
+
+因为根据Java内存模型的先行发生原则，对volatile字段的写入操作先于读操作，即使两个线程同时修改和获取volatile变量，get操作也能拿到最新的值。
+
+put操作：判断是否需要对HashEntry数组进行扩容，第二步定位添加元素的位置
+
+先行发生原则
+
+1）程序次序规则
+
+2）管程锁定规则
+
+3）volatile变量规则:对一个volatile变量的写操作先行发生于后面这个变量的读操作
+
+ 
+
+Synchronized
+
+同步代码块使用了 monitorenter 和 monitorexit 指令实现。
+
+同步方法中依靠方法 修饰符上的 ACC_SYNCHRONIZED 实现
+
+锁的四种状态：无锁状态，偏向锁状态，轻量级锁状态，重量级锁状态
+
+轻量级锁能提升程序同步性能的依据是“对于绝大部分的锁，在整个同步周期内都是不存在竞争的”，轻量级锁使用CAS 操作避免了使用互斥量的开销
+
+ monitor是线程私有的数据结构，每一个线程都有一个可用的monitor列表，同时还有一个全局可用的列表
+
+每个线程的当前栈帧中都有一个Lock Record锁记录，用于存储锁对象目前的Mark Word的拷贝
+
+虚拟机将使用CAS操作将Mark Word更新为指向Lock Record的指针，如果成功，则拥有轻量级锁
+
+如果有两条以上的线程争用同一个锁，那轻量级锁就不再有效，要膨胀为重量级锁
+
+轻量级锁：利用了CPU原语Compare-And-Swap(CAS，汇编指令CMPXCHG)
+
+如果说轻量级锁是在无竞争的情况下使用CAS操作去消除同步使用的互斥量，那偏向锁就是在无竞争的情况下把整个同步都消除掉，连CAS操作都不做了
+
+CAS（Compare and swap）原理
+
+思想，三个参数，一个当前内存值V、旧的预期值A、即将更新的值B，当且仅当预期值A和内存值V相同时，将内存值修改为B并返回true，否则什么都不做，并返回false
+
+CAS是通过unsafe类的compareAndSwap方法实现的
+
+Unsafe是CAS的核心类，由于Java方法无法直接访问底层系统，需要通过本地（native）方法来访问，Unsafe相当于一个后门，基于该类可以直接操作特定内存的数据
+
+compareAndSwap:第一个参数是要修改的对象，第二个参数是对象中要修改变量的偏移量，第三个参数是修改之前的值，第四个参数是预想修改后的值
+
+CAS的缺点：ABA问题
+
+如果变量V初次读取的时候是A，并且在准备赋值的时候检查到它仍然是A，那能说明它的值没有被其他线程修改过了吗？
+
+解决办法：java并发包中提供了一个带有标记的原子引用类AtomicStampedReference，它可以通过控制变量值的版本来保证CAS的正确性
+
+LOCK(AQS)
+
+当通过lockInterruptibly()方法获取某个锁时，如果不能获取到，只有进行等待的情况下，是可以响应中断的。
+
+而用synchronized修饰的话，当一个线程处于等待某个锁的状态，是无法被中断的，只有一直等待下去。
+
+ 
+
+REDIS哨兵的主要作用：集群监控和故障转移 )
+
+------------------------------------------meituan------------------------------
+架构图
+
+qps多少，99线多少
+
+string stringbuffer stringbuilder区别
+
+string a = "abc" string b = new String("abc"), a == b和 a.equals(b)返回什么值，为什么
+
+hashmap hashtable ConcurrentHashMap区别
+
+hashmap结构，默认长度
+
+ConcurrentHashMap结构，是否和hashmap一样，段锁的实现方式，
+
+数据库隔离级别都有哪个，mysql默认隔离级别是什么，不可重复读和幻读是什么意思
+
+数据库的存储引擎都用过哪些，什么区别，他们的索引什么区别。innodb的主键索引和辅助索引的区别，组合索引，哪种方式走索引
+
+mysql的执行计划都有哪些字段
+
+spring事物传播级别概念，记住概念，实现方式，
+
+spring 有哪些特性，ioc和aop是什么意思，aop使用场景，spring中aop是怎么实现的，cglib和javasist区别
+
+spring中两个对象双向引用是怎么实现的
+
+给你一个加减乘除的签名  int operator(int a, int b, string oprator),你怎么实现这个功能，策略算法
+
+设计一个车，可以是小汽车，拖拉机，等车型，它可以行走在公路，泥路，山路上等，你怎么设计。一个设计模式
+
+jvm内存分为几个区，哪写区会有OOM异常，堆包含哪几块。你们用的什么垃圾回收策略，
+
+说下cms的几个步骤，哪个步骤会STW，CMS的优点缺点，CMS怎么分析数据是否可达，GC ROOT怎么找的，CMS处理失败后怎么继续处理，PALL OLD
+
+老年代怎么分配的空间，（碰撞指针，还是空闲列表）
+
+线程都有什么状态
+
+synchronized怎么实现的，lock怎么实现的，他们的优缺点
+
+volatile特性，i++怎么实现的
+
+偏向锁，轻量级锁，重量级锁了解吗
+
+aqs了解吗，cas实现方式，自旋的缺点，jvm怎么优化自旋（自旋优化这个问题个人觉得应该放在同步快上去问）
+
+threadlocal实现方式
+
+二叉树遍历方式，哪个遍历方式高，时间复杂度多少，红黑色实现方式，解决啥问题
+
+手写快速排序，跳表，TOP N问题
+
+双主数据库主键怎么生成的，雪花算法有啥问题
+
+dubbo有什么优点，dubbo默认协议，默认序列化方式
+
+zk算法
+
+redis主从同步机制，如果主挂了，怎么在从节点中选择一个节点作为主节点
+
+熔断机制中，线程池隔离和信号隔离的实现方式，设计一个熔断器
+
+mq堆积问题怎么解决
+
+---------------------------------------
+二叉树遍历shell文件排序jvm调优（怎么调）hashmap和hashtable区别聊项目问算法 第一面：一个小组的技术leader         算法：N * N 数组的的斜杠输出         非算法：主要是线程并发相关，                   synchronized 的实现原理                   lock的实现原理                   线程池的调优 newCachedThreadPool() newFixedThreadPool等的区别和参数调优                   hashtable hashmap的底层实现机制                   spring事务的实现原理                   mysql锁机制，索引的类型，主键索引和普通索引的区别 第二面：一个小组的技术leader         算法：N * N数组螺旋输出         非算法：                   jvm gc的机制和原理                   volatile实现原理和意义                   项目的实现原理
+---------------------------------------
+mysql 多个索引做where条件，执行随机指定一个where有索引，order 有索引，where索引没起作用mysql 建立多个索引，update多个索引操作，有可能索引dubbo自定义线程池，阻塞队列长度设置dubbo机房，网络异常，全部断网几分钟，后恢复，会有什么问题redis mysql同步mysql int类型索引字段a，查询条件， 为字符串会走索引吗，相反条件呢权限设计线程池超时时间怎么弄
