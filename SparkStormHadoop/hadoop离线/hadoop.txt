@@ -175,3 +175,26 @@ NameNode-HA工作原理：
 （2）会话管理， 如果NameNode是健康的，zkfc就会在zookeeper中保持一个打开的会话，如果NameNode同时还是Active状态的，那么zkfc还会在Zookeeper中占有一个类型为短暂类型的znode，当这个NameNode挂掉时， 
 这个znode将会被删除，然后备用的NameNode，将会得到这把锁，升级为主NameNode，同时标记状态为Active，当宕机的NameNode，重新启动时，它会再次注册zookeper，发现已经有znode锁了，便会自动变为Standby状态，如此往复循环，保证高可靠，需要注意，目前仅仅支持最多配置2个NameNode。 
 （3）master选举，如上所述，通过在zookeeper中维持一个短暂类型的znode，来实现抢占式的锁机制，从而判断那个NameNode为Active状态。
+
+MapReduce程序执行流程
+(1) 开发人员编写好MapReduce program，将程序打包运行。
+(2) JobClient向JobTracker申请可用Job，JobTracker返回JobClient一个可用Job ID。
+(3) JobClient得到Job ID后，将运行Job所需要的资源拷贝到共享文件系统HDFS中。
+(4) 资源准备完备后，JobClient向JobTracker提交Job。
+(5) JobTracker收到提交的Job后，初始化Job。
+(6) 初始化完成后，JobTracker从HDFS中获取输入splits(作业可以该启动多少Mapper任务)。
+(7) 与此同时，TaskTracker不断地向JobTracker汇报心跳信息，并且返回要执行的任务。
+(8) TaskTracker得到JobTracker分配(尽量满足数据本地化)的任务后，向HDFS获取Job资源(若数据是本地的，不需拷贝数据)。
+(9) 获取资源后，TaskTracker会开启JVM子进程运行任务。
+MapReduce工作原理
+map task
+程序会根据InputFormat将输入文件分割成splits，每个split会作为一个map task的输入，每个map task会有一个内存缓冲区，
+输入数据经过map阶段处理后的中间结果会写入内存缓冲区，并且决定数据写入到哪个partitioner，当写入的数据到达内存缓冲
+区的的阀值(默认是0.8)，会启动一个线程将内存中的数据溢写入磁盘，同时不影响map中间结果继续写入缓冲区。在溢写过程中，
+MapReduce框架会对key进行排序，如果中间结果比较大，会形成多个溢写文件，最后的缓冲区数据也会全部溢写入磁盘形成一个溢写
+文件(最少有一个溢写文件)，如果是多个溢写文件，则最后合并所有的溢写文件为一个文件。
+reduce task
+
+当所有的map task完成后，每个map task会形成一个最终文件，并且该文件按区划分。reduce任务启动之前，一个map task完成后，
+就会启动线程来拉取map结果数据到相应的reduce task，不断地合并数据，为reduce的数据输入做准备，当所有的map tesk完成后，
+数据也拉取合并完毕后，reduce task 启动，最终将输出输出结果存入HDFS上。
