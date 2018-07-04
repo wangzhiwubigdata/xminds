@@ -627,7 +627,7 @@ REDIS哨兵的主要作用：集群监控和故障转移 )
 架构图
 
 qps多少，99线多少
-
+qps 5万 / 500-800ms
 string stringbuffer stringbuilder区别
 
 string a = "abc" string b = new String("abc"), a == b和 a.equals(b)返回什么值，为什么
@@ -752,10 +752,9 @@ Mark Word被设计成一个非固定的数据结构以便在极小的空间内�
 存储内容标志位状态
 对象Hash值、对象分代年龄01æ         ª锁定
 指向锁记录的指针00轻量级锁定
-指向重量级锁ç指针10膨胀（重量级锁定）
-空，不记录信息11GC标è       ®°
+指向重量级锁指针10膨胀（重量级锁定）
 偏向线程ID、偏向时间戳、对象分代年龄01可偏向
-å 锁过程
+锁过程
 
 在代码进入同步块的时候，如果此同步对象没有被锁定（锁标志位为“01”状态），虚拟机首先将在当前线程的栈帧中建立一个名为锁记录（Lock Record）的空间，用于存储锁对象目前的Mark Word的拷贝（官方把这份拷贝加了一个Displaced前缀，即Displaced Mark Word），这时候线程堆栈与对象头的状态如下图所示。
 
@@ -832,15 +831,23 @@ mq堆积问题怎么解决
 ---------------------------------------
 二叉树遍历shell文件排序jvm调优（怎么调）
 hashmap和hashtable区别聊项目问算法
- 第一面：一个小组的技术leader         算法：N * N 数组的的斜杠输出         非算法：主要是线程并发相关，                   synchronized 的实现原理 
-  lock的实现原理                  
- 线程池的调优 newCachedThreadPool() newFixedThreadPool等的区别和参数调优                   hashtable hashmap的底层实现机制                   spring事务的实现原理                  
- mysql锁机制，索引的类型，主键索引和普通索引的区别
+算法：N * N 数组的的斜杠输出         
+非算法：主要是线程并发相关                   
+synchronized 的实现原理 
+lock的实现原理                  
+线程池的调优 newCachedThreadPool() newFixedThreadPool等的区别和参数调优                   
+hashtable hashmap的底层实现机制                   
+spring事务的实现原理                  
+mysql锁机制，索引的类型，主键索引和普通索引的区别
 主键一定是唯一性索引，唯一性索引并不一定就是主键
 一个表中可以有多个唯一性索引，但只能有一个主键. 
 主键列不允许空值，而唯一性索引列允许空值.
 
- 第二面：一个小组的技术leader         算法：N * N数组螺旋输出         非算法：                   jvm gc的机制和原理                   volatile实现原理和意义                   项目的实现原理
 ---------------------------------------
-mysql 多个索引做where条件，执行随机指定一个where有索引，order 有索引，where索引没起作用mysql 建立多个索引，update多个索引操作，有可能索引dubbo自定义线程池，阻塞队列长度设置dubbo机房，网络异常，全部断网几分钟，后恢复，会有什么问题redis mysql同步mysql int类型索引字段a，查询条件， 为字符串会走索引吗，相反条件呢权限设计线程池超时时间怎么弄
+mysql 多个索引做where条件，执行随机指定一个where有索引，order 有索引，where索引没起作用mysql 建立多个索引，update多个索引操作，有可能索引
+dubbo自定义线程池，阻塞队列长度设置
+dubbo机房，网络异常，全部断网几分钟，后恢复，会有什么问题
+redis mysql同步mysql int类型索引字段a，查询条件， 为字符串会走索引吗，相反条件呢
+权限设计
+线程池超时时间怎么弄
 ---------------------------------------
