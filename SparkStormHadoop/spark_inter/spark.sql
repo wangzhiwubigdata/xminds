@@ -1,0 +1,27 @@
+
+SqlParser
+SqlParser的功能就是将SQL语句解析成Unresolved LogicalPlan。现阶段的SqlParser语法解析功能比较简单，支持的语法比较有限。其解析过程中有两个关键组件和一个关键函数：
+词法读入器SqlLexical，其作用就是将输入的SQL语句进行扫描、去空、去注释、校验、分词等动作。
+SQL语法表达式query，其作用定义SQL语法表达式，同时也定义了SQL语法表达式的具体实现，即将不同的表达式生成不同sparkSQL的Unresolved LogicalPlan。
+函数phrase()，上面个两个组件通过调用phrase(query)(new lexical.Scanner(input))，完成对SQL语句的解析；在解析过程中，SqlLexical一边读入，一边解析，如果碰上生成符合SQL语法的表达式时，就调用相应SQL语法表达式的具体实现函数，将SQL语句解析成Unresolved LogicalPlan。
+
+Analyzer
+Analyzer的功能就是对来自SqlParser的Unresolved LogicalPlan中的UnresolvedAttribute项和UnresolvedRelation项，对照catalog和FunctionRegistry生成Analyzed LogicalPlan
+
+Optimizer
+Optimizer的功能就是将来自Analyzer的Analyzed LogicalPlan进行多种rule优化，生成Optimized LogicalPlan
+
+Planner将LogicalPlan转换成PhysicalPlan
+
+
+
+sqlParse，完成sql语句的语法解析功能，目前只提供了一个简单的sql解析器；
+Analyzer，主要完成绑定工作，将不同来源的Unresolved LogicalPlan和数据元数据（如hive metastore、Schema catalog）进行绑定，生成resolved LogicalPlan；
+optimizer对resolved LogicalPlan进行优化，生成optimized LogicalPlan；
+Planner将LogicalPlan转换成PhysicalPlan；
+CostModel，主要根据过去的性能统计数据，选择最佳的物理执行计划
+这些组件的基本实现方法：
+先将sql语句通过解析生成Tree，然后在不同阶段使用不同的Rule应用到Tree上，通过转换完成各个组件的功能。
+Analyzer使用Analysis Rules，配合数据元数据（如hive metastore、Schema catalog），完善Unresolved LogicalPlan的属性而转换成resolved LogicalPlan；
+optimizer使用Optimization Rules，对resolved LogicalPlan进行合并、列裁剪、过滤器下推等优化作业而转换成optimized LogicalPlan；
+Planner使用Planning Strategies，对optimized LogicalPlan
