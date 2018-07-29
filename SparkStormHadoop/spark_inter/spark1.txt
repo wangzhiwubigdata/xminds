@@ -1,0 +1,58 @@
+Spark核心运算机制
+1、提供输入组件从外部存储获取数据相关信息2、将获取的数据描述成spark内部的核心数据结构RDD（分布式集合）3、提供分布式并行运算机制处理RDD中的记录4、整个运算逻辑可以描述成一个DAG图5、运算的中间结果可以直接存储在内存中，不需要落地6、运算结束后生成的结果RDD可以写出到外部存储Spark任务调度
+调度的整个过程是一个自底向上的过程：首先，由Driver中的appclient向资源调度平台的Master注册application，同时也就是申请可用资源的过程（此处Master的资源分配有两种策略spreadout or not）然后，AppClient拿到Master所分配的资源（也就是executor）后，向全局TaskSchedulerImpl汇报然后，TaskSchedulerImpl将executor交给TaskSetManagment来进行task分配（主要是Locality的处理）最后，TaskSchedulerImpl通过SchedulerBackend向executor上的executorBackend通信，请求launchTask
+—————————————
+spark streaming 运行机制：客户端提交作业后启动Driver，Driver是spark作业的Master。每个作业包含多个Executor，每个Executor以线程的方式运行task，Spark Streaming至少包含一个receiver task。Receiver接收数据后生成Block，并把BlockId汇报给Driver，然后备份到另外一个Executor上。ReceiverTracker维护Reciver汇报的BlockId。Driver定时启动JobGenerator，根据Dstream的关系生成逻辑RDD，然后创建Jobset，交给JobScheduler。JobScheduler负责调度Jobset，交给DAGScheduler，DAGScheduler根据逻辑RDD，生成相应的Stages，每个stage包含一到多个task。TaskScheduler负责把task调度到Executor上，并维护task的运行状态。当tasks，stages，jobset完成后，单个batch才算完成。
+—————————————
+Spark任务调度综述
+在提交的过程中，DAGScheduler模块介入运算，计算RDD之间的依赖关系。RDD之间的依赖关系就形成了DAG。每一个JOB被分为多个stage，划分stage的一个主要依据是当前计算因子的输入是否是确定的，如果是则将其分在同一个stage，避免多个stage之间的消息传递开销。当stage被提交之后，由taskscheduler来根据stage来计算所需要的task，并将task提交到对应的worker.
+
+—————————————
+资源调度
+程序一旦创建sparkcontext，就会创建DAGScheduler、TaskScheduler、SparkDeploySchedulerBackend
+SparkDeploySchedulerBackend一启动就会创建一个子actor：AppClient
+AppClient一启动，就会将应用的相关参数封装成ApplicationDescription以RegisterApplication消息发送给资源调度平台的Master节点
+—————————————
+Master节点收到应用注册的消息RegisterApplication，就会从自身维护的worker资源池中为应用分配资源：
+分配策略有两种：尽量打散，尽量集中
+尽量打散是默认实现，而且是推荐实现：
+1、遍历资源池，判断（该worker上的cpu+内存满足app的要求 && 该worker上不存在app的executor），为true，则将该worker分配给app
+2、分配了worker之后：a、通知worker，启动ExecutorBackend
+2、通知driver端（TaskSchedulerImpl），应用已经添加了executor
+
+——————————————
+Spark 应用的执行流程
+val sc = new SparkContext
+创建TaskScheduler
+创建TaskScheduler的助手SchedulerBackend（SparkDploySchedulerBackend）
+SchedulerBackend.onStart()——>创建一个APPClient
+-->向Master发送消息！ RegisterApplication(applicationDescription:executor-cores 2,executor-memory 2g,total-executor-cores 12)
+
+
+创建DAGScheduler（ts）
+
+main{
+
+sc.textFile()......reduceByKey().saveAsTextFile()   Job
+
+sc.textFile()...........ToHbase()   Job
+}
+Application
+
+
+sc.runJob()
+
+DAGScheduler.submiJob()
+EventprocesserActor
+DAGScheduler.handlJobSubmited
+
+
+
+DAGScheduler划分stage
+把stage转换成taskset
+提交taskset给TaskScheduler
+TaskScheduler为taskset中的task分配executor
+TaskScheduler通过SchedulerBackend将task发送到executor上
+
+————
+这件事情要从Spark的DAG切割说起。Spark RDD通过其transaction和action操作，串起来形成了一个DAG。action的调用，触发了DAG的提交和整个job的执行。触发之后，由DAGScheduler这个全局唯一的面向stage的DAG调度器来切分DAG，根据是否shuffle来切成多个小DAG，即stage。凡是RDD之间是窄依赖的，都归到一个stage里，这里面的每个操作都对应成MapTask，并行度就是各自RDD的partition数目。凡是遇到宽依赖的操作，那么就把这一次操作切为一个stage，这里面的操作对应成ResultTask，结果RDD的partition数就是并行度。MapTask和ResultTask分别可以简单理解为传统MR的Map和Reduce，切分他们的依据本质上就是shuffle。所以shuffle之前，大量的map是可以同partition内操作的。每个stage对应的是多个MapTask或多个ResultTask，这一个stage内的task集合成一个TaskSet类，由TaskSetManager来管理这些task的运行状态，locality处理(比如需要delay scheduling)。这个TaskSetManager是Spark层面上的，如何管理自己的tasks，即任务线程，这一层与底下资源管理是 剥离 的。我们上面提到的TaskSetManager的resourceOffer方法，是task与底下资源的交互，这个资源交互的协调人是TaskScheduler，也是全局的，TaskScheduler对接的是不同的SchedulerBackend的实现(比如mesos，yarn，standalone)，如此来对接不同的资源管理系统。同时，对资源管理系统来说，他们要负责的是进程，是worker上起几个进程，每个进程分配多少资源。所以这两层很清楚， spark本身计算框架内管理线程级别的task ，每个stage都有一个TaskSet，本身是个小DAG，可以丢到全局可用的资源池里跑；spark下半身的 双层资源管理部分掌控的是进程级别的executor ，不关心task怎么摆放，也不关心task运行状态，这是TaskSetManager管理的事情，两者的协调者就是TaskScheduler及其内的SchedulerBackend实现。
