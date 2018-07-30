@@ -2,7 +2,7 @@
 https://yq.aliyun.com/articles/64821
 bloggg:important!!!!!!!
 
-
+https://blog.csdn.net/lmalds/article/category/6263085/2
 反压 ：Task 1 在输出端有一个相关联的 LocalBufferPool（称缓冲池1），Task 2 在输入端也有一个相关联的 LocalBufferPool（称缓冲池2）。如果缓冲池1中有空闲可用的 buffer 来序列化记录 “A”，我们就序列化并发送该 buffer。
 
 内存管理：Flink 并不是将大量对象存在堆上，而是将对象都序列化到一个预分配的内存块上; Flink 实现了自己的序列化框架。因为在 Flink 中处理的数据流通常是同一类型，由于数据集对象的类型固定，对于数据集可以只保存一份对象Schema信息，节省大量的存储空间
