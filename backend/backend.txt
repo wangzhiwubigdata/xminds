@@ -236,7 +236,7 @@ https://www.jianshu.com/p/5d12a01018e1
 
 6.redis的过期测略有哪些？LRU？写代码？
 定时删除
-含义：在设置key的过期时间的同时，为该key创建一个定时器，让定时器在key的过期时间来临时，对key进行删除
+含义：在设置key的过期时间的同时，为该key创建一个定时器，让定时器在key的过期时间来临时，对key进行删除-
 优点：保证内存被尽快释放
 缺点：
 若过期key很多，删除这些key会占用很多的CPU时间，在CPU时间紧张的情况下，CPU不能把所有的时间用来做要紧的事儿，还需要去花时间删除这些key
@@ -333,7 +333,7 @@ thrift其实只是一个跨平台的序列化协议，跟dubbo中使用的hessia
 
 3.kafka，activemq，rocketmq,rabbitmq有什么优缺点？
 http://blog.csdn.net/kaixuanfeng2012/article/details/72821874
-
+rocketmq:顺序消息、消息重复rocketmq不保证（业务端去重）、事务消息
 4.如何让你实现一个消息队列，如何进行架构设计？说一下思路
 mq 幂等 顺序 延迟 
 
