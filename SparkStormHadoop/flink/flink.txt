@@ -1,5 +1,6 @@
 反压
 https://yq.aliyun.com/articles/64821
+bloggg:important!!!!!!!
 
 
 反压 ：Task 1 在输出端有一个相关联的 LocalBufferPool（称缓冲池1），Task 2 在输入端也有一个相关联的 LocalBufferPool（称缓冲池2）。如果缓冲池1中有空闲可用的 buffer 来序列化记录 “A”，我们就序列化并发送该 buffer。
