@@ -3,15 +3,35 @@
 ###怎么解决Hash冲突；（开放地址法、链地址法、再哈希法、建立公共溢出区等）
 ###
 ###写出一个必然会产生死锁的伪代码；
-###
+methodA() {
+synchronized(lockA) {
+Thread.sleep(10000);
+synchronized(lockB) {
+...
+}
+}
+}
+
+methodB() {
+synchronized(lockB) {
+Thread.sleep(10000);
+synchronized(lockA) {
+...
+}
+}
+}
+
 ###Spring IoC涉及到的设计模式；（工厂模式、单利模式。。）
-###
+
 ###toString()方法什么情况下需要重写；
-###
+ 希望对象按指定格式输出，否则是一个内存地址
 ###判断对象相等时，什么情况下只需要重写 equals()，什么情况下需要重写 equals(),hashcode()？
 ###
 ###Set内存放的元素为什么不可以重复，内部是如何保证和实现的？
-###
+hashset在存储对象时，先判断两个对象的hash值是否一样，只有在hashcode()相等的前提下equals()也相等，才认为两个对象时同一个。
+加入到hashset中的自定义类的对象，为确保他们不重复，需要对他们的类重写equals()和hashcode()的方法。
+
+如果不重写equals，相同内容不同引用的对象会被当做不同的对象被加入到hashset中。
 ###如何保证分布式缓存的一致性(分布式缓存一致性hash算法?)？分布式session实现？
 ###
 ###Java 8流式迭代的好处？
