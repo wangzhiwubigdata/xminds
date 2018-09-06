@@ -1,0 +1,35 @@
+
+
+1
+hadoop体系结构，hdfs读写流程，spring的设计模式，2个算法题（二维数组查找，堆排序）
+
+
+2
+hadoop的搭建流程，HA的原理，HA如何做的，HA中的重要概念，HA同步数据方式和流程，hadoop集群删除/添加节点的流程，说说start-balance.sh发生了什么
+hadoop shuffle的流程，hadoopshuffle中会产生的问题
+
+hdfs的读写流程，多线程读写同一个hdfs文件会出现什么问题，写hdfs文件如何处理压缩格式（lzo...等等）
+
+hivesql的原理，解析过程，hivesql的优化，如何进行map side join，hive和mysql语法的差异 说出几点
+
+项目相关（架构/细节实现/出现过的问题及解决办法）maven处理包冲突的解决办法
+
+spark streaming和flink的区别，spark消费kafka的方式/优缺点，位点如何提交，checkpoint是什么，spark水塘采样，spark反压的实现和flink的区别
+
+flink水印，state，窗口（哪些，区别，适用场景）
+
+并发包的类的实现，红黑树，mysql引擎及索引等
+
+机器学习分类聚类算法
+
+
+3.JVM很多很多/spring常见的一大堆问题/jdk动态代理在嵌套事务中的坑
+
+4.kafka源码/实现原理，hbase二级索引，rowkey热点，查找方式有几种   数据仓库的概念，分层思想，雪花模型和星型模型
+
+
+
+
+
+
+
